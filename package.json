@@ -18,27 +18,27 @@
   "author": "أحمد الطبراني (Ahmed El-Tabarani)",
   "license": "MIT",
   "dependencies": {
-    "connect-timeout": "^1.9.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.6.1",
-    "express": "^4.17.3",
-    "express-rate-limit": "^6.9.0",
-    "express-validator": "^7.2.0",
-    "helmet": "^8.0.0",
-    "html-entities": "^2.3.3",
-    "linkedom": "^0.14.25",
+    "connect-timeout": "^1.9.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "express-rate-limit": "^8.5.2",
+    "express-validator": "^7.3.2",
+    "helmet": "^8.2.0",
+    "html-entities": "^2.6.0",
+    "linkedom": "^0.18.12",
     "node-cache": "^5.1.2",
     "swagger-ui-express": "^5.0.1",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
-    "jest": "^29.7.0",
-    "nodemon": "^2.0.15",
-    "supertest": "^7.0.0"
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   },
   "engines": {
-    "node": "16.14.0",
-    "npm": "8.3.1"
+    "node": ">=24.16.0",
+    "npm": ">=11.16.0"
   }
 }
