@@ -14,7 +14,7 @@
 
 ## تنبيه
 
-- يتم عمل `cache` لكل عملية بحث لمدة `5` ثواني
+- يتم عمل `cache` لكل عملية بحث لمدة `5` دقائق
 - هناك حد للاستخدام: `100` عملية بحث في اليوم لكل `IP`
 
 > يمكنك تعديلهم من ملف [config.js](./config/config.js)
@@ -49,7 +49,11 @@ http://localhost:5000
 
 ### Use headless Chromium for Dorar requests
 
-By default, `DORAR_FETCH_MODE=auto` tries HTTP first and retries HTTP `403` responses through headless Chromium. The existing endpoints, result fields, and pagination stay the same. Each browser request uses a separate process that closes after the response. The bundled binary is extracted once into `/tmp`.
+Vercel uses Chromium directly by default to avoid waiting for a blocked HTTP request first. Elsewhere, `DORAR_FETCH_MODE=auto` tries HTTP first and retries HTTP `403` responses through headless Chromium. Set `DORAR_FETCH_MODE` explicitly to override either default. The existing endpoints, result fields, and pagination stay the same. Each browser request uses a separate process that closes after the response. The bundled binary is extracted once into `/tmp`.
+
+Chromium loads only the main document and its redirects. It skips scripts, styles, images, and frames because the API parses the hadith and sharh content already present in Dorar's HTML.
+
+Successful public API responses are cached in memory for `CACHE_EACH` seconds, which defaults to 300. On Vercel, the CDN also caches these responses for that period and can serve a stale response for up to one hour while refreshing it in the background. Errors are not cached. Check `x-vercel-cache` for CDN hits; `metadata.isCached` describes the in-memory cache when the function generated the response. See [Vercel cache-control headers](https://vercel.com/docs/caching/cache-control-headers).
 
 To run locally:
 
@@ -71,7 +75,7 @@ Run `npm run check:browser` to test actual searches, pagination, specialist resu
 
 1. Import this repository into Vercel and select Node.js `24.x`.
 2. Keep `CHROMIUM_EXECUTABLE_PATH` unset. Vercel uses the bundled `@sparticuz/chromium` binary with `puppeteer-core`.
-3. Set `DORAR_FETCH_MODE=browser` if Dorar consistently blocks direct HTTP requests. Set `EXPRESS_TIMEOUT=60s` if you already configured a shorter timeout.
+3. Leave `DORAR_FETCH_MODE` unset to use Chromium directly, or set it to `browser`. Set `EXPRESS_TIMEOUT=60s` if you already configured a shorter timeout.
 4. Deploy and check `/v1/site/hadith/search?value=إنما%20الأعمال`.
 
 `vercel.json` uses `npm ci`, includes the compressed browser binaries and data files, and sets a 60-second function limit. The function entry point is `api/index.js`. It extracts Chromium into writable `/tmp` at runtime. See the [Chromium package instructions](https://github.com/Sparticuz/chromium) and [Vercel function limits](https://vercel.com/docs/functions/limitations).

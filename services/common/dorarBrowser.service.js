@@ -102,6 +102,15 @@ const fetchInBrowser = async (url, options = {}) => {
         Object.fromEntries(new Headers(options.headers)),
       );
     }
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      const navigation =
+        request.isNavigationRequest() &&
+        request.frame() === page.mainFrame();
+      return (
+        navigation ? request.continue() : request.abort()
+      ).catch(() => {});
+    });
     const response = await page.goto(target.href, {
       waitUntil: 'domcontentloaded',
       timeout: remaining(),

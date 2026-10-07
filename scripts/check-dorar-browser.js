@@ -34,6 +34,7 @@ const checks = [
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   try {
+    const related = {};
     for (const [name, path, params] of checks) {
       cache.flushAll();
       const started = Date.now();
@@ -62,9 +63,41 @@ const checks = [
       if (path.includes('/site/')) {
         assert.equal(body.metadata.specialist, !!params.specialist);
         assert.ok(Array.isArray(body.data[0].categories));
+        related.sharh ||= body.data.find(
+          (h) => h.hasSharhMetadata,
+        )?.sharhMetadata?.urlToGetSharh;
+        related.similar ||= body.data.find(
+          (h) => h.hasSimilarHadith,
+        )?.urlToGetSimilarHadith;
+        related.hadith ||= `/v1/site/hadith/${body.data[0].hadithId}`;
       }
       console.log(
         `${name}: HTTP ${response.status}, ${body.data.length} results, ${Date.now() - started} ms`,
+      );
+    }
+    for (const [name, path] of Object.entries(related)) {
+      cache.flushAll();
+      const started = Date.now();
+      const response = await fetch(
+        `http://127.0.0.1:${server.address().port}${path}`,
+        { signal: AbortSignal.timeout(60000) },
+      );
+      const body = await response.json();
+      assert.equal(
+        response.status,
+        200,
+        `${name}: ${body.message || response.statusText}`,
+      );
+      const hadith = Array.isArray(body.data)
+        ? body.data[0]
+        : body.data;
+      assert.ok(
+        hadith?.hadith && hadith?.rawi,
+        `${name}: incomplete results`,
+      );
+      if (name === 'sharh') assert.ok(hadith.sharhMetadata?.sharh);
+      console.log(
+        `${name}: HTTP ${response.status}, ${Date.now() - started} ms`,
       );
     }
   } finally {

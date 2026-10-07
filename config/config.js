@@ -18,7 +18,9 @@ const parseProxyUrl = (value) => {
   }
 };
 
-const dorarFetchMode = process.env.DORAR_FETCH_MODE || 'auto';
+const dorarFetchMode =
+  process.env.DORAR_FETCH_MODE ||
+  (process.env.VERCEL ? 'browser' : 'auto');
 if (!['auto', 'http', 'browser'].includes(dorarFetchMode)) {
   throw new Error('DORAR_FETCH_MODE must be auto, http, or browser');
 }
@@ -48,10 +50,9 @@ module.exports = config = {
 
   /** @type {number}
    * @description time between cache updates
-   * @default 5 seconds
-   * @example 5 * 1000 // 5 seconds
+   * @default 300 seconds
    */
-  cacheEach: toNumber(process.env.CACHE_EACH, 5),
+  cacheEach: toNumber(process.env.CACHE_EACH, 300),
 
   /** @type {number}
    * @description timeout for HTTP response headers

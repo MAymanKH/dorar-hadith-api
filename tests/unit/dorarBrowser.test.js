@@ -35,6 +35,9 @@ describe('Chromium response and process lifecycle', () => {
       fetchInBrowser,
     } = require('../../services/common/dorarBrowser.service'));
     page = {
+      setRequestInterception: jest.fn(),
+      on: jest.fn(),
+      mainFrame: () => 'main-frame',
       setUserAgent: jest.fn(),
       authenticate: jest.fn(),
       setExtraHTTPHeaders: jest.fn(),
@@ -84,6 +87,29 @@ describe('Chromium response and process lifecycle', () => {
       fetchInBrowser('https://dorar.net/hadith/search?q=test'),
     ).rejects.toMatchObject({ statusCode: 502 });
     expect(browser.close).toHaveBeenCalledTimes(1);
+  });
+
+  test('loads main navigation and redirects while skipping page assets and iframes', async () => {
+    await fetchInBrowser('https://dorar.net/hadith/search?q=test');
+    expect(page.setRequestInterception).toHaveBeenCalledWith(true);
+    const intercept = page.on.mock.calls.find(
+      ([event]) => event === 'request',
+    )[1];
+    for (const [navigation, frame, allowed] of [
+      [true, 'main-frame', true],
+      [false, 'main-frame', false],
+      [true, 'iframe', false],
+    ]) {
+      const request = {
+        isNavigationRequest: () => navigation,
+        frame: () => frame,
+        continue: jest.fn().mockResolvedValue(),
+        abort: jest.fn().mockResolvedValue(),
+      };
+      await intercept(request);
+      expect(request.continue).toHaveBeenCalledTimes(allowed ? 1 : 0);
+      expect(request.abort).toHaveBeenCalledTimes(allowed ? 0 : 1);
+    }
   });
 
   test('a stalled navigation closes Chromium and returns a timeout', async () => {
