@@ -8,6 +8,7 @@ const app = require('../app');
 const cache = require('../utils/cache');
 
 const checks = [
+  ['money', '/v1/site/hadith/search', { value: 'المال' }],
   ['intentions', '/v1/site/hadith/search', { value: 'إنما الأعمال' }],
   [
     'page 2',

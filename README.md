@@ -76,7 +76,7 @@ Run `npm run check:browser` to test actual searches, pagination, specialist resu
 
 `vercel.json` uses `npm ci`, includes the compressed browser binaries and data files, and sets a 60-second function limit. The function entry point is `api/index.js`. It extracts Chromium into writable `/tmp` at runtime. See the [Chromium package instructions](https://github.com/Sparticuz/chromium) and [Vercel function limits](https://vercel.com/docs/functions/limitations).
 
-Chromium succeeded in repeated live checks from the development machine. Access from Vercel's IPs still needs a check after deployment. This implementation does not solve interactive CAPTCHAs, and Dorar can still block requests.
+Check searches from the deployed Vercel function after each deployment, since upstream access depends on its server IP. This implementation does not solve interactive CAPTCHAs, and Dorar can still block requests.
 
 ### Restore upstream access after a Cloudflare block
 
