@@ -40,6 +40,7 @@ describe('Dorar access through an outbound proxy', () => {
   const tunnels = [];
   const originRequests = [];
   const previousProxy = process.env.DORAR_PROXY_URL;
+  const previousMode = process.env.DORAR_FETCH_MODE;
   const previousCertificates = tls.getCACertificates('default');
 
   beforeAll(async () => {
@@ -100,6 +101,7 @@ describe('Dorar access through an outbound proxy', () => {
     });
     await listen(proxy);
     process.env.DORAR_PROXY_URL = `http://proxy-user:proxy-password@127.0.0.1:${proxy.address().port}`;
+    process.env.DORAR_FETCH_MODE = 'http';
 
     jest.resetModules();
     config = require('../../config/config');
@@ -122,6 +124,9 @@ describe('Dorar access through an outbound proxy', () => {
     if (previousProxy === undefined)
       delete process.env.DORAR_PROXY_URL;
     else process.env.DORAR_PROXY_URL = previousProxy;
+    if (previousMode === undefined)
+      delete process.env.DORAR_FETCH_MODE;
+    else process.env.DORAR_FETCH_MODE = previousMode;
     await Promise.all(
       [...dispatchers].map((dispatcher) => dispatcher.destroy()),
     );

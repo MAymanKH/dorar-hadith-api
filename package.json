@@ -9,7 +9,8 @@
     "test": "cross-env NODE_ENV=test node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
-    "test:integration": "npm test -- tests/integration"
+    "test:integration": "npm test -- tests/integration",
+    "check:browser": "node scripts/check-dorar-browser.js"
   },
   "keywords": [
     "hadith",
@@ -19,6 +20,7 @@
   "author": "أحمد الطبراني (Ahmed El-Tabarani)",
   "license": "MIT",
   "dependencies": {
+    "@sparticuz/chromium": "153.0.0",
     "connect-timeout": "^1.9.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -29,6 +31,7 @@
     "html-entities": "^2.6.0",
     "linkedom": "^0.18.12",
     "node-cache": "^5.1.2",
+    "puppeteer-core": "25.12.0",
     "swagger-ui-express": "^5.0.1",
     "undici": "^7.30.0",
     "yamljs": "^0.3.0"

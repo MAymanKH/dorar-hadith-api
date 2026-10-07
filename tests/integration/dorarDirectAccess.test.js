@@ -46,3 +46,19 @@ test.each(['not-a-url', 'socks5://user:secret@proxy.example:1080'])(
     expect(result.stderr).not.toContain('secret');
   },
 );
+
+test('invalid transport configuration fails at startup', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['-e', 'require("./config/config")'],
+    {
+      cwd: path.resolve(__dirname, '../..'),
+      env: { ...process.env, DORAR_FETCH_MODE: 'invalid' },
+      encoding: 'utf8',
+    },
+  );
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain(
+    'DORAR_FETCH_MODE must be auto, http, or browser',
+  );
+});

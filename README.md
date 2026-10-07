@@ -47,9 +47,40 @@ http://localhost:5000
 
 ## Documentation
 
+### Use headless Chromium for Dorar requests
+
+By default, `DORAR_FETCH_MODE=auto` tries HTTP first and retries HTTP `403` responses through headless Chromium. The existing endpoints, result fields, and pagination stay the same. Each browser request uses a separate process that closes after the response. The bundled binary is extracted once into `/tmp`.
+
+To run locally:
+
+1. Run `npm ci` and copy `.env.example` to `.env`.
+2. To use an installed Chrome or Chromium, set its path:
+
+   ```dotenv
+   CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+   ```
+
+   Leave this variable unset on a compatible Linux x64 server to use the bundled serverless binary. On macOS and Windows, set the path to your installed Chrome or Chromium.
+3. Run `npm start`.
+
+Set `DORAR_FETCH_MODE=browser` to send every upstream request through Chromium. Set it to `http` to disable Chromium. `FETCH_TIMEOUT` sets the Chromium request deadline and the time allowed for HTTP response headers. Set `EXPRESS_TIMEOUT=60s` to leave time for HTTP fallback and browser startup.
+
+Run `npm run check:browser` to test actual searches, pagination, specialist results, repeated requests, and the official JSON API. The script starts a temporary local API server and clears its cache before each request. Run `npm run check:browser -- --auto` to check automatic HTTP fallback instead. These checks contact Dorar and fail if access is blocked or results are missing.
+
+### Deploy Chromium on Vercel
+
+1. Import this repository into Vercel and select Node.js `24.x`.
+2. Keep `CHROMIUM_EXECUTABLE_PATH` unset. Vercel uses the bundled `@sparticuz/chromium` binary with `puppeteer-core`.
+3. Set `DORAR_FETCH_MODE=browser` if Dorar consistently blocks direct HTTP requests. Set `EXPRESS_TIMEOUT=60s` if you already configured a shorter timeout.
+4. Deploy and check `/v1/site/hadith/search?value=إنما%20الأعمال`.
+
+`vercel.json` uses `npm ci`, includes the compressed browser binaries and data files, and sets a 60-second function limit. The function entry point is `api/index.js`. It extracts Chromium into writable `/tmp` at runtime. See the [Chromium package instructions](https://github.com/Sparticuz/chromium) and [Vercel function limits](https://vercel.com/docs/functions/limitations).
+
+Chromium succeeded in repeated live checks from the development machine. Access from Vercel's IPs still needs a check after deployment. This implementation does not solve interactive CAPTCHAs, and Dorar can still block requests.
+
 ### Restore upstream access after a Cloudflare block
 
-If Dorar blocks this server, the API returns HTTP `502` with a message about upstream access. Changing request headers does not guarantee access.
+If Dorar blocks both HTTP and Chromium, the API returns HTTP `502` with a message about upstream access. An allowed server IP or outbound proxy is another access path.
 
 1. Obtain an HTTP CONNECT proxy whose outbound access Dorar permits, or ask Dorar to allow your server's IP.
 2. To use the proxy, set `DORAR_PROXY_URL` in `.env`. For Vercel, set the variable in the project's environment settings.

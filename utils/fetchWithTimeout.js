@@ -1,6 +1,9 @@
 const AppError = require('./AppError');
 const config = require('../config/config');
 const { ProxyAgent } = require('undici');
+const {
+  fetchInBrowser,
+} = require('../services/common/dorarBrowser.service');
 
 const proxy = config.dorarProxyUrl
   ? new ProxyAgent(config.dorarProxyUrl)
@@ -20,13 +23,21 @@ const fetchWithTimeout = async (url, options = {}) => {
   const id = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const response = await fetch(url, {
-      ...options,
-      ...(proxy ? { dispatcher: proxy } : {}),
-      signal: controller.signal,
-      headers,
-    });
+    let response =
+      config.dorarFetchMode === 'browser'
+        ? await fetchInBrowser(url, options)
+        : await fetch(url, {
+            ...options,
+            ...(proxy ? { dispatcher: proxy } : {}),
+            signal: controller.signal,
+            headers,
+          });
     clearTimeout(id);
+
+    if (response.status === 403 && config.dorarFetchMode === 'auto') {
+      await response.body?.cancel();
+      response = await fetchInBrowser(url, options);
+    }
 
     if (!response.ok) {
       await response.body?.cancel();

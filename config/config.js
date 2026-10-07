@@ -18,6 +18,11 @@ const parseProxyUrl = (value) => {
   }
 };
 
+const dorarFetchMode = process.env.DORAR_FETCH_MODE || 'auto';
+if (!['auto', 'http', 'browser'].includes(dorarFetchMode)) {
+  throw new Error('DORAR_FETCH_MODE must be auto, http, or browser');
+}
+
 module.exports = config = {
   /** @type {number}
    * @description default port to localhost
@@ -55,6 +60,8 @@ module.exports = config = {
   fetchTimeout: toNumber(process.env.FETCH_TIMEOUT, 15000),
 
   dorarProxyUrl: parseProxyUrl(process.env.DORAR_PROXY_URL),
+  dorarFetchMode,
+  chromiumExecutablePath: process.env.CHROMIUM_EXECUTABLE_PATH,
 
   /** @type {number}
    * @description page size for Dorar API hadith search
@@ -70,9 +77,11 @@ module.exports = config = {
 
   /** @type {string}
    * @description timeout for express timeout middleware
-   * @default 30s // 30 seconds
+   * @default 60s // 30s in HTTP-only mode
    */
-  expressTimeout: process.env.EXPRESS_TIMEOUT || '30s',
+  expressTimeout:
+    process.env.EXPRESS_TIMEOUT ||
+    (dorarFetchMode === 'http' ? '30s' : '60s'),
 
   /** @type {string}
    * @description limit for express.json middleware
