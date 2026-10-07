@@ -63,7 +63,7 @@ To run locally:
    Leave this variable unset on a compatible Linux x64 server to use the bundled serverless binary. On macOS and Windows, set the path to your installed Chrome or Chromium.
 3. Run `npm start`.
 
-Set `DORAR_FETCH_MODE=browser` to send every upstream request through Chromium. Set it to `http` to disable Chromium. `FETCH_TIMEOUT` sets the Chromium request deadline and the time allowed for HTTP response headers. Set `EXPRESS_TIMEOUT=60s` to leave time for HTTP fallback and browser startup.
+Set `DORAR_FETCH_MODE=browser` to send every upstream request through Chromium. Set it to `http` to disable Chromium. `FETCH_TIMEOUT` allows 15 seconds for HTTP response headers. `BROWSER_FETCH_TIMEOUT` allows 40 seconds for Chromium imports, cold startup, and navigation. Browser shutdown is limited to two seconds. The default budgets leave time for HTTP fallback and browser cleanup within the 60-second Vercel function limit. Keep `EXPRESS_TIMEOUT=60s` when using Chromium.
 
 Run `npm run check:browser` to test actual searches, pagination, specialist results, repeated requests, and the official JSON API. The script starts a temporary local API server and clears its cache before each request. Run `npm run check:browser -- --auto` to check automatic HTTP fallback instead. These checks contact Dorar and fail if access is blocked or results are missing.
 

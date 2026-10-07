@@ -25,7 +25,28 @@ const fetchInBrowser = async (url, options = {}) => {
       elapsedMs: Date.now() - started,
     });
   };
-  const close = () => (closing ||= browser.close());
+  const kill = () => {
+    try {
+      browser.process()?.kill('SIGKILL');
+    } catch {}
+  };
+  const close = () =>
+    (closing ||= (async () => {
+      let killTimer;
+      try {
+        await Promise.race([
+          browser.close().catch(kill),
+          new Promise((resolve) => {
+            killTimer = setTimeout(() => {
+              kill();
+              resolve();
+            }, 2000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(killTimer);
+      }
+    })());
 
   try {
     trace('imports');
@@ -33,6 +54,15 @@ const fetchInBrowser = async (url, options = {}) => {
       import('puppeteer-core'),
       import('@sparticuz/chromium'),
     ]);
+    const remaining = () => {
+      const time =
+        config.browserFetchTimeout - (Date.now() - started);
+      if (time <= 0)
+        throw new puppeteer.TimeoutError(
+          'Chromium request exceeded BROWSER_FETCH_TIMEOUT',
+        );
+      return time;
+    };
     trace('extraction');
     if (!config.chromiumExecutablePath && !executablePromise) {
       executablePromise = chromium.executablePath().catch((error) => {
@@ -59,19 +89,14 @@ const fetchInBrowser = async (url, options = {}) => {
         ...(proxy ? [`--proxy-server=${proxy.origin}`] : []),
       ],
       ignoreDefaultArgs: ['--enable-automation'],
-      timeout: config.fetchTimeout,
-      protocolTimeout: config.fetchTimeout,
+      timeout: remaining(),
+      protocolTimeout: config.browserFetchTimeout,
     });
 
-    const remaining = config.fetchTimeout - (Date.now() - started);
-    if (remaining <= 0)
-      throw new puppeteer.TimeoutError(
-        'Chromium startup exceeded FETCH_TIMEOUT',
-      );
     timer = setTimeout(() => {
       timedOut = true;
       close().catch(() => {});
-    }, remaining);
+    }, remaining());
 
     trace('new-page');
     const page = await browser.newPage();
@@ -93,7 +118,7 @@ const fetchInBrowser = async (url, options = {}) => {
     trace('navigation');
     const response = await page.goto(target.href, {
       waitUntil: 'domcontentloaded',
-      timeout: remaining,
+      timeout: remaining(),
     });
     trace('body');
     const body = await response.buffer();

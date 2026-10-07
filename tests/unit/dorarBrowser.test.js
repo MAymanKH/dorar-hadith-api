@@ -30,6 +30,7 @@ describe('Chromium response and process lifecycle', () => {
     config.chromiumExecutablePath = '/test/chromium';
     config.dorarProxyUrl = undefined;
     config.fetchTimeout = 1000;
+    config.browserFetchTimeout = 1000;
     ({
       fetchInBrowser,
     } = require('../../services/common/dorarBrowser.service'));
@@ -87,6 +88,7 @@ describe('Chromium response and process lifecycle', () => {
 
   test('a stalled navigation closes Chromium and returns a timeout', async () => {
     config.fetchTimeout = 30;
+    config.browserFetchTimeout = 30;
     let rejectNavigation;
     page.goto.mockImplementation(
       () =>
@@ -102,6 +104,48 @@ describe('Chromium response and process lifecycle', () => {
     ).rejects.toMatchObject({ statusCode: 408 });
     expect(browser.close).toHaveBeenCalledTimes(1);
   });
+
+  test('cold startup uses the browser budget and leaves only the remaining time for launch', async () => {
+    config.chromiumExecutablePath = undefined;
+    config.fetchTimeout = 15000;
+    config.browserFetchTimeout = 40000;
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(0);
+    chromium.executablePath.mockImplementation(async () => {
+      clock.mockReturnValue(16000);
+      return '/tmp/chromium';
+    });
+    try {
+      const response = await fetchInBrowser(
+        'https://dorar.net/hadith/search?q=test',
+      );
+      expect(response.status).toBe(200);
+      expect(puppeteer.launch).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: 24000 }),
+      );
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  test('a stalled shutdown kills the child process and still returns the result', async () => {
+    let finishClose;
+    browser.close.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishClose = resolve;
+        }),
+    );
+    const kill = jest.fn(() => {
+      finishClose();
+      return true;
+    });
+    browser.process = () => ({ kill });
+    const response = await fetchInBrowser(
+      'https://dorar.net/hadith/search?q=test',
+    );
+    expect(response.status).toBe(200);
+    expect(kill).toHaveBeenCalledWith('SIGKILL');
+  }, 4000);
 
   test('extracts the serverless binary once but isolates requests in separate browsers', async () => {
     config.chromiumExecutablePath = undefined;

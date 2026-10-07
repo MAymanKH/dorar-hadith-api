@@ -54,10 +54,14 @@ module.exports = config = {
   cacheEach: toNumber(process.env.CACHE_EACH, 5),
 
   /** @type {number}
-   * @description timeout for fetch requests
+   * @description timeout for HTTP response headers
    * @default 15000 // 15 seconds
    */
   fetchTimeout: toNumber(process.env.FETCH_TIMEOUT, 15000),
+  browserFetchTimeout: toNumber(
+    process.env.BROWSER_FETCH_TIMEOUT,
+    40000,
+  ),
 
   dorarProxyUrl: parseProxyUrl(process.env.DORAR_PROXY_URL),
   dorarFetchMode,
