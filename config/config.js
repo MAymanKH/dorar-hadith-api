@@ -3,6 +3,21 @@ const toNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const parseProxyUrl = (value) => {
+  if (!value?.trim()) return undefined;
+  try {
+    const url = new URL(value.trim());
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('Unsupported proxy protocol');
+    }
+    return url.href;
+  } catch {
+    throw new Error(
+      'DORAR_PROXY_URL must be a valid HTTP or HTTPS proxy URL',
+    );
+  }
+};
+
 module.exports = config = {
   /** @type {number}
    * @description default port to localhost
@@ -21,7 +36,10 @@ module.exports = config = {
    * @default 24 hours
    * @example 24 * 60 * 60 * 1000 // 24 hours
    */
-  rateLimitEach: toNumber(process.env.RATE_LIMIT_EACH, 24 * 60 * 60 * 1000),
+  rateLimitEach: toNumber(
+    process.env.RATE_LIMIT_EACH,
+    24 * 60 * 60 * 1000,
+  ),
 
   /** @type {number}
    * @description time between cache updates
@@ -35,6 +53,8 @@ module.exports = config = {
    * @default 15000 // 15 seconds
    */
   fetchTimeout: toNumber(process.env.FETCH_TIMEOUT, 15000),
+
+  dorarProxyUrl: parseProxyUrl(process.env.DORAR_PROXY_URL),
 
   /** @type {number}
    * @description page size for Dorar API hadith search

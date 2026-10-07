@@ -1,42 +1,61 @@
 const AppError = require('./AppError');
 const config = require('../config/config');
+const { ProxyAgent } = require('undici');
+
+const proxy = config.dorarProxyUrl
+  ? new ProxyAgent(config.dorarProxyUrl)
+  : undefined;
 
 const fetchWithTimeout = async (url, options = {}) => {
   const timeout = config.fetchTimeout;
+  const headers = new Headers({
+    'User-Agent': 'DorarHadithAPI/1.0',
+    Accept: 'application/json, text/html;q=0.9, */*;q=0.8',
+    'Accept-Language': 'ar,en;q=0.9',
+  });
+  new Headers(options.headers).forEach((value, key) => {
+    headers.set(key, value);
+  });
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
   try {
     const response = await fetch(url, {
       ...options,
+      ...(proxy ? { dispatcher: proxy } : {}),
       signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "ar,en;q=0.9",
-        "Referer": "https://dorar.net/",
-        "Origin": "https://dorar.net",
-        "Connection": "keep-alive",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-origin",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
-      }
+      headers,
     });
     clearTimeout(id);
 
     if (!response.ok) {
-      throw new AppError(`Failed to fetch data: ${response.statusText}`, response.status);
+      await response.body?.cancel();
+      if (response.status === 403) {
+        throw new AppError(
+          'Dorar denied upstream access (HTTP 403). Configure DORAR_PROXY_URL with an authorized proxy or ask Dorar to allow this server.',
+          502,
+        );
+      }
+      throw new AppError(
+        `Failed to fetch data: ${response.statusText}`,
+        response.status,
+      );
     }
 
     return response;
   } catch (error) {
     clearTimeout(id);
     if (error.name === 'AbortError') {
-      throw new AppError('Request timeout. Please try again later.', 408);
+      throw new AppError(
+        'Request timeout. Please try again later.',
+        408,
+      );
     }
-    throw error;
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      'Unable to reach Dorar. Check outbound access and DORAR_PROXY_URL.',
+      502,
+    );
   }
 };
 

@@ -47,6 +47,29 @@ http://localhost:5000
 
 ## Documentation
 
+### Restore upstream access after a Cloudflare block
+
+If Dorar blocks this server, the API returns HTTP `502` with a message about upstream access. Changing request headers does not guarantee access.
+
+1. Obtain an HTTP CONNECT proxy whose outbound access Dorar permits, or ask Dorar to allow your server's IP.
+2. To use the proxy, set `DORAR_PROXY_URL` in `.env`. For Vercel, set the variable in the project's environment settings.
+
+   ```dotenv
+   DORAR_PROXY_URL=https://username:password@proxy.example:8443
+   ```
+
+   URL-encode special characters in the username and password. Keep this value private. Both HTTP and HTTPS proxy URLs are supported. An HTTPS proxy encrypts the connection to the proxy as well as the connection to Dorar.
+3. Restart the server or redeploy the Vercel project. Leave the variable empty to connect directly from an allowed server.
+4. Check the search endpoint:
+
+   ```bash
+   curl --get 'http://localhost:5000/v1/site/hadith/search' --data-urlencode 'value=إنما الأعمال'
+   ```
+
+   Expect HTTP `200` with hadith results and the existing site metadata. The proxy must already have access to Dorar. This setting does not solve a Cloudflare challenge or guarantee access from a blocked IP.
+
+Run `npm test` to verify the proxy transport, response format, timeouts, and error handling without contacting Dorar.
+
 ### Postman
 
 الرابط: [Postman](https://www.postman.com/crimson-robot-408440/workspace/hadith-api/collection/14391446-6a1c5404-cc59-4d59-933d-c07547ee75ca?action=share&creator=14391446)
