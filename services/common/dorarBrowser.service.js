@@ -17,13 +17,23 @@ const fetchInBrowser = async (url, options = {}) => {
   let timer;
   let closing;
   let timedOut = false;
+  let phase;
+  const trace = (stage) => {
+    phase = stage;
+    console.info('[DEBUG-dorar-browser]', {
+      phase,
+      elapsedMs: Date.now() - started,
+    });
+  };
   const close = () => (closing ||= browser.close());
 
   try {
+    trace('imports');
     const [puppeteer, { default: chromium }] = await Promise.all([
       import('puppeteer-core'),
       import('@sparticuz/chromium'),
     ]);
+    trace('extraction');
     if (!config.chromiumExecutablePath && !executablePromise) {
       executablePromise = chromium.executablePath().catch((error) => {
         executablePromise = undefined;
@@ -39,6 +49,7 @@ const fetchInBrowser = async (url, options = {}) => {
       ? new URL(config.dorarProxyUrl)
       : undefined;
 
+    trace('launch');
     browser = await puppeteer.launch({
       executablePath,
       headless: config.chromiumExecutablePath ? true : 'shell',
@@ -62,7 +73,9 @@ const fetchInBrowser = async (url, options = {}) => {
       close().catch(() => {});
     }, remaining);
 
+    trace('new-page');
     const page = await browser.newPage();
+    trace('user-agent');
     await page.setUserAgent(
       (await browser.userAgent()).replace('HeadlessChrome', 'Chrome'),
     );
@@ -77,10 +90,12 @@ const fetchInBrowser = async (url, options = {}) => {
         Object.fromEntries(new Headers(options.headers)),
       );
     }
+    trace('navigation');
     const response = await page.goto(target.href, {
       waitUntil: 'domcontentloaded',
       timeout: remaining,
     });
+    trace('body');
     const body = await response.buffer();
     const headers = new Headers();
     for (const [name, value] of Object.entries(response.headers())) {
@@ -101,6 +116,12 @@ const fetchInBrowser = async (url, options = {}) => {
       },
     );
   } catch (error) {
+    console.warn('[DEBUG-dorar-browser]', {
+      phase,
+      errorName: error.name,
+      timedOut,
+      elapsedMs: Date.now() - started,
+    });
     if (timedOut || error.name === 'TimeoutError') {
       throw new AppError(
         'Chromium request timeout. Please try again later.',
@@ -113,7 +134,9 @@ const fetchInBrowser = async (url, options = {}) => {
     );
   } finally {
     clearTimeout(timer);
+    trace('close');
     if (browser) await close().catch(() => {});
+    trace('closed');
   }
 };
 
