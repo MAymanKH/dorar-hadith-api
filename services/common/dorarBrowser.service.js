@@ -20,8 +20,10 @@ const fetchInBrowser = async (url, options = {}) => {
   const close = () => (closing ||= browser.close());
 
   try {
-    const puppeteer = require('puppeteer-core');
-    const chromium = require('@sparticuz/chromium').default;
+    const [puppeteer, { default: chromium }] = await Promise.all([
+      import('puppeteer-core'),
+      import('@sparticuz/chromium'),
+    ]);
     if (!config.chromiumExecutablePath && !executablePromise) {
       executablePromise = chromium.executablePath().catch((error) => {
         executablePromise = undefined;

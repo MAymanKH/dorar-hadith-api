@@ -1,4 +1,4 @@
-jest.mock('puppeteer-core', () => ({
+jest.unstable_mockModule('puppeteer-core', () => ({
   launch: jest.fn(),
   TimeoutError: class TimeoutError extends Error {
     constructor(message) {
@@ -7,7 +7,7 @@ jest.mock('puppeteer-core', () => ({
     }
   },
 }));
-jest.mock('@sparticuz/chromium', () => ({
+jest.unstable_mockModule('@sparticuz/chromium', () => ({
   default: {
     args: ['--no-sandbox'],
     executablePath: jest.fn(),
@@ -22,10 +22,10 @@ describe('Chromium response and process lifecycle', () => {
   let page;
   let browser;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.resetModules();
-    puppeteer = require('puppeteer-core');
-    chromium = require('@sparticuz/chromium').default;
+    puppeteer = await import('puppeteer-core');
+    chromium = (await import('@sparticuz/chromium')).default;
     config = require('../../config/config');
     config.chromiumExecutablePath = '/test/chromium';
     config.dorarProxyUrl = undefined;
