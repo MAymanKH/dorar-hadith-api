@@ -3735,5 +3735,161 @@
       ]
     },
     "decision": "rejected: cold preparation remained approximately five seconds"
+  },
+  "production-verification": {
+    "commit": "3abab4d182a74b771280d5b3e498405c2300be53",
+    "deployment": "https://dorar-hadith-6iic39tt8-maymankhs-projects.vercel.app",
+    "http": {
+      "base": "https://hadith-searcher-dorar-api-amx.vercel.app",
+      "results": [
+        {
+          "name": "first explanation",
+          "wire": {
+            "status": 200,
+            "dns": 0.176013,
+            "connect": 0.192038,
+            "tls": 0.315993,
+            "ttfb": 9.007734,
+            "total": 9.010753,
+            "bytes": 4206
+          },
+          "cdn": "MISS",
+          "stages": [],
+          "nodeCached": false,
+          "count": 1
+        },
+        {
+          "name": "explanation CDN",
+          "wire": {
+            "status": 200,
+            "dns": 0.00279,
+            "connect": 0.020144,
+            "tls": 0.131269,
+            "ttfb": 0.343152,
+            "total": 0.344677,
+            "bytes": 4206
+          },
+          "cdn": "HIT",
+          "stages": [],
+          "nodeCached": false,
+          "count": 1
+        },
+        {
+          "name": "search fresh",
+          "wire": {
+            "status": 200,
+            "dns": 0.001116,
+            "connect": 0.00531,
+            "tls": 0.113489,
+            "ttfb": 2.744337,
+            "total": 2.764893,
+            "bytes": 40587
+          },
+          "cdn": "MISS",
+          "stages": [],
+          "nodeCached": false,
+          "count": 30
+        },
+        {
+          "name": "search CDN",
+          "wire": {
+            "status": 200,
+            "dns": 0.002553,
+            "connect": 0.02328,
+            "tls": 0.137857,
+            "ttfb": 0.353088,
+            "total": 0.387409,
+            "bytes": 40587
+          },
+          "cdn": "HIT",
+          "stages": [],
+          "nodeCached": false,
+          "count": 30
+        },
+        {
+          "name": "similar fresh",
+          "wire": {
+            "status": 200,
+            "dns": 0.002693,
+            "connect": 0.007937,
+            "tls": 0.119634,
+            "ttfb": 1.921313,
+            "total": 1.925207,
+            "bytes": 4943
+          },
+          "cdn": "MISS",
+          "stages": [],
+          "nodeCached": false,
+          "count": 5
+        },
+        {
+          "name": "details fresh",
+          "wire": {
+            "status": 200,
+            "dns": 0.002113,
+            "connect": 0.02283,
+            "tls": 0.13908,
+            "ttfb": 1.460421,
+            "total": 1.462025,
+            "bytes": 1418
+          },
+          "cdn": "MISS",
+          "stages": [],
+          "nodeCached": false,
+          "count": 1
+        },
+        {
+          "name": "sharh search fresh",
+          "wire": {
+            "status": 200,
+            "dns": 0.002065,
+            "connect": 0.01113,
+            "tls": 0.141081,
+            "ttfb": 18.762085,
+            "total": 18.863897,
+            "bytes": 41504
+          },
+          "cdn": "MISS",
+          "stages": [],
+          "nodeCached": false,
+          "count": 15
+        },
+        {
+          "name": "sharh search CDN",
+          "wire": {
+            "status": 200,
+            "dns": 0.002431,
+            "connect": 0.019941,
+            "tls": 0.130211,
+            "ttfb": 0.197486,
+            "total": 0.20783,
+            "bytes": 41504
+          },
+          "cdn": "HIT",
+          "stages": [],
+          "nodeCached": false,
+          "count": 15
+        },
+        {
+          "name": "search HTML",
+          "wire": {
+            "status": 200,
+            "dns": 0.00241,
+            "connect": 0.010959,
+            "tls": 0.140298,
+            "ttfb": 10.623294,
+            "total": 10.634931,
+            "bytes": 45685
+          },
+          "cdn": "MISS",
+          "stages": [],
+          "nodeCached": false,
+          "count": 30
+        }
+      ]
+    },
+    "benchmarkRouteStatus": 404,
+    "invalidSearchStatus": 400,
+    "productionProfilingEnabled": false
   }
 }
