@@ -49,7 +49,7 @@ http://localhost:5000
 
 ### Use headless Chromium for Dorar requests
 
-Vercel uses Chromium directly by default to avoid waiting for a blocked HTTP request first. Elsewhere, `DORAR_FETCH_MODE=auto` tries HTTP first and retries HTTP `403` responses through headless Chromium. Set `DORAR_FETCH_MODE` explicitly to override either default. The existing endpoints, result fields, and pagination stay the same. Each browser request uses a separate process that closes after the response. The bundled binary is extracted once into `/tmp`.
+Vercel uses Chromium directly by default to avoid waiting for a blocked HTTP request first. Elsewhere, `DORAR_FETCH_MODE=auto` tries HTTP first and retries HTTP `403` responses through headless Chromium. Set `DORAR_FETCH_MODE` explicitly to override either default. The default `DORAR_BROWSER_STRATEGY=reuse` keeps one Chromium process per function instance, with at most two active pages. Each request closes its page. The browser is checked before reuse and recycled when idle after ten requests or when its sampled RSS reaches 256 MB. Vercel may discard an instance at any time. The bundled binary is extracted once into that instance's `/tmp`. Identical concurrent URLs share fetching and HTML parsing.
 
 Chromium loads only the main document and its redirects. It skips scripts, styles, images, and frames because the API parses the hadith and sharh content already present in Dorar's HTML.
 

@@ -21,6 +21,7 @@ const swaggerDocument = YAML.load(path.join(__dirname, 'api-docs', 'openapi.yaml
 
 const app = express();
 if (process.env.VERCEL) app.set('trust proxy', 1);
+if (process.env.DORAR_BENCHMARK === '1') app.use(require('./utils/requestTimings').middleware);
 
 // Security Middleware
 app.use(helmet());

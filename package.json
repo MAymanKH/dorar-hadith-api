@@ -17,10 +17,11 @@
     "api",
     "sunnah"
   ],
-  "author": "أحمد الطبراني (Ahmed El-Tabarani)",
+  "author": "\u0623\u062d\u0645\u062f \u0627\u0644\u0637\u0628\u0631\u0627\u0646\u064a (Ahmed El-Tabarani)",
   "license": "MIT",
   "dependencies": {
     "@sparticuz/chromium": "153.0.0",
+    "@vercel/functions": "^3.9.11",
     "connect-timeout": "^1.9.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

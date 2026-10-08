@@ -24,6 +24,12 @@ const dorarFetchMode =
 if (!['auto', 'http', 'browser'].includes(dorarFetchMode)) {
   throw new Error('DORAR_FETCH_MODE must be auto, http, or browser');
 }
+const browserStrategy = process.env.DORAR_BROWSER_STRATEGY || 'reuse';
+if (!['reuse', 'isolated', 'background'].includes(browserStrategy)) {
+  throw new Error(
+    'DORAR_BROWSER_STRATEGY must be reuse, isolated, or background',
+  );
+}
 
 module.exports = config = {
   /** @type {number}
@@ -54,6 +60,7 @@ module.exports = config = {
    */
   cacheEach: toNumber(process.env.CACHE_EACH, 300),
   cacheStableEach: toNumber(process.env.CACHE_STABLE_EACH, 86400),
+  browserStrategy,
 
   /** @type {number}
    * @description timeout for HTTP response headers

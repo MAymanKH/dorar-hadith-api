@@ -1,5 +1,6 @@
 const AppError = require('./AppError');
 const config = require('../config/config');
+const { current } = require('./requestTimings');
 const { ProxyAgent } = require('undici');
 const {
   fetchInBrowser,
@@ -9,7 +10,7 @@ const proxy = config.dorarProxyUrl
   ? new ProxyAgent(config.dorarProxyUrl)
   : undefined;
 
-const fetchWithTimeout = async (url, options = {}) => {
+const fetchOnce = async (url, options = {}) => {
   const timeout = config.fetchTimeout;
   const headers = new Headers({
     'User-Agent': 'DorarHadithAPI/1.0',
@@ -68,6 +69,35 @@ const fetchWithTimeout = async (url, options = {}) => {
       502,
     );
   }
+};
+
+const pending = new Map();
+const fetchWithTimeout = async (url, options = {}) => {
+  if (current()?.deduplicate === false || Object.keys(options).length)
+    return fetchOnce(url, options);
+  if (!pending.has(url)) {
+    pending.set(
+      url,
+      (async () => {
+        try {
+          const response = await fetchOnce(url);
+          return {
+            body: await response.arrayBuffer(),
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          };
+        } finally {
+          pending.delete(url);
+        }
+      })(),
+    );
+  }
+  const { body, ...init } = await pending.get(url);
+  return new Response(
+    [204, 205, 304].includes(init.status) ? null : body,
+    init,
+  );
 };
 
 module.exports = fetchWithTimeout;
