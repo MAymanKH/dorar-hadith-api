@@ -4552,5 +4552,14 @@
       }
     },
     "decision": "preview only: compare active CPU allowance against unknown cold/cache rates before adopting"
+  },
+  "latest-production-smoke": {
+    "commit": "da55e95a8881bb2c193c297a5b2a599d68883a09",
+    "request": "/v1/site/hadith/search?value=الدين النصيحة&page=1",
+    "httpStatus": 200,
+    "totalSeconds": 10.67954,
+    "results": 30,
+    "timingsAvailable": false,
+    "interpretation": "Fresh search after deployment; cannot attribute stages with profiling disabled"
   }
 }

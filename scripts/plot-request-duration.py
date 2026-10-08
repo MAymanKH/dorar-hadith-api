@@ -10,7 +10,11 @@ data = json.loads((folder / 'measurements.json').read_text())
 rows = data['http-after-sharh-layout-fix']['results']
 selected = [next(r for r in rows if r['name'] == name) for name in
             ['first explanation', 'search fresh', 'sharh search fresh', 'sharh search CDN']]
-labels = ['Cold explanation', 'Warm hadith search', 'Explanation search, 15 items', 'Explanation search, CDN hit']
+labels = ['Cold explanation, legacy', 'Warm hadith search', 'Explanation search, 15 items', 'Explanation search, CDN hit']
+fluid = data['fluid-preview']
+cold = fluid['coldService']['result']
+selected.insert(1, {'wire': fluid['coldWire'], 'stages': cold['stages'] + [{'name': 'server', 'ms': cold['responseReadyMs']}]})
+labels.insert(1, 'Cold explanation, Fluid benchmark')
 parts = ['Imports', 'Unpack Chromium', 'Browser/page work', 'Dorar navigation', 'Read/parse HTML', 'Resolve 15 previews', 'Other inside handler', 'Outside handler']
 colors = ['#8c6bb1', '#d95f02', '#7570b3', '#1b9e77', '#66a61e', '#e6ab02', '#a6a6a6', '#bdbdbd']
 values = []
@@ -29,7 +33,7 @@ for row in selected:
     assert min(components) >= -0.01
     values.append([max(0, x) for x in components])
 
-fig, ax = plt.subplots(figsize=(11, 4.8))
+fig, ax = plt.subplots(figsize=(11, 5.5))
 left = [0.0] * len(values)
 for i, (part, color) in enumerate(zip(parts, colors)):
     widths = [v[i] for v in values]
