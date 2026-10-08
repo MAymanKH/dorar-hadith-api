@@ -1,6 +1,8 @@
 const serializeQueryParams = require('../../utils/serializeQueryParams');
 const AppError = require('../../utils/AppError');
 const config = require('../../config/config');
+const { measure } = require('../../utils/requestTimings');
+const { getOneSharhByIdUsingSiteDorar } = require('./sharhSearch.service');
 
 const { getCachedResponse, setCachedResponse } = require('../common/cache.service');
 const { fetchDocument, fetchDecodedJsonBody } = require('../common/dorarFetch.service');
@@ -70,6 +72,44 @@ const searchUsingSiteDorar = async ({ queryParams, tab, isRemoveHTML, isForSpeci
   }
 
   const doc = await fetchDocument(url);
+  if (
+    String(queryParams.t) === '3' &&
+    doc.querySelector('#cntnt') &&
+    doc.querySelector('#results-end')
+  ) {
+    const ids = [...doc.querySelectorAll('#cntnt article a[href]')]
+      .map(
+        (link) =>
+          link
+            .getAttribute('href')
+            .match(/^\/hadith\/sharh\/(\d+)$/)?.[1],
+      )
+      .filter(Boolean);
+    const responses = await measure('hydrate', () =>
+      Promise.all(
+        ids.map((sharhId) =>
+          getOneSharhByIdUsingSiteDorar({ sharhId, isRemoveHTML }),
+        ),
+      ),
+    );
+    const result = responses.map((response) => response.data);
+    if (result.some((item) => !item.hadithId)) {
+      throw new AppError(
+        'Hadith ID not found in Dorar explanation',
+        502,
+      );
+    }
+    const page = parseInt(queryParams.page, 10) || 1;
+    return setCachedResponse(key, result, {
+      length: result.length,
+      currentPageCount: result.length,
+      page,
+      hasNextPage: result.length === 15,
+      hasPrevPage: page > 1,
+      removeHTML: isRemoveHTML,
+      specialist: isForSpecialist,
+    });
+  }
   const tabElement = doc.querySelector(`#${tab}`);
   if (!tabElement) {
     throw new AppError('Invalid response structure from Dorar', 502);

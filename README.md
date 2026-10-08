@@ -71,6 +71,8 @@ Set `DORAR_FETCH_MODE=browser` to send every upstream request through Chromium. 
 
 Run `npm run check:browser` to test actual searches, pagination, specialist results, repeated requests, and the official JSON API. The script starts a temporary local API server and clears its cache before each request. Run `npm run check:browser -- --auto` to check automatic HTTP fallback instead. These checks contact Dorar and fail if access is blocked or results are missing.
 
+Explanation-filtered searches with `t=3` resolve Dorar's 15 preview links into complete hadith records. A fresh page requires 16 Dorar requests and takes longer than a normal hadith search. This layout provides no total count. The API estimates `hasNextPage` from a full 15-item page.
+
 ### Deploy Chromium on Vercel
 
 1. Import this repository into Vercel and select Node.js `24.x`.
