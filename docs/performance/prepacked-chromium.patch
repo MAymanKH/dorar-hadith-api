@@ -1,0 +1,57 @@
+--- a/services/common/dorarBrowser.service.js
++++ b/services/common/dorarBrowser.service.js
+@@ -179,7 +179,14 @@
+       return time;
+     };
+     if (!config.chromiumExecutablePath && !executablePromise) {
+-      executablePromise = chromium.executablePath().catch((error) => {
++      executablePromise = (async () => {
++        if (process.env.DORAR_PREPACKED_CHROMIUM === '1') {
++          const { cp } = require('node:fs/promises');
++          const { resolve } = require('node:path');
++          await cp(resolve(process.cwd(), 'build/chromium'), require('node:os').tmpdir(), { recursive: true });
++        }
++        return chromium.executablePath();
++      })().catch((error) => {
+         executablePromise = undefined;
+         throw error;
+       });
+--- a/vercel.json
++++ b/vercel.json
+@@ -6,8 +6,15 @@
+   "functions": {
+     "api/index.js": {
+       "maxDuration": 60,
+-      "includeFiles": "{node_modules/@sparticuz/chromium/bin/**,api-docs/**,data/**}"
++      "includeFiles": "{build/chromium/**,api-docs/**,data/**}",
++      "excludeFiles": "node_modules/@sparticuz/chromium/bin/**"
+     }
+   },
+-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
++  "rewrites": [
++    {
++      "source": "/(.*)",
++      "destination": "/api/index"
++    }
++  ],
++  "buildCommand": "node scripts/prepare-chromium.js"
+ }
+--- /dev/null
++++ b/scripts/prepare-chromium.js
+@@ -0,0 +1,16 @@
++const { mkdirSync, writeFileSync, chmodSync } = require('node:fs');
++const { resolve } = require('node:path');
++const directory = resolve('build/chromium');
++mkdirSync(directory, { recursive: true });
++mkdirSync('public', { recursive: true });
++writeFileSync('public/build-marker.txt', 'Dorar API\n');
++process.env.TMPDIR = directory;
++(async () => {
++  const { default: chromium } = await import('@sparticuz/chromium');
++  const executable = await chromium.executablePath();
++  chmodSync(executable, 0o755);
++  console.log(`Prepared Chromium at ${executable}`);
++})().catch((error) => {
++  console.error(error);
++  process.exitCode = 1;
++});

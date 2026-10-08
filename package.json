@@ -10,7 +10,10 @@
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
     "test:integration": "npm test -- tests/integration",
-    "check:browser": "node scripts/check-dorar-browser.js"
+    "check:browser": "node scripts/check-dorar-browser.js",
+    "benchmark:browser": "node scripts/benchmark-dorar.js",
+    "benchmark:vercel": "node scripts/benchmark-vercel.js",
+    "benchmark:http": "node scripts/benchmark-http.js"
   },
   "keywords": [
     "hadith",

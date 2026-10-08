@@ -66,6 +66,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
+require('./scripts/benchmark-route')(app);
 app.get('/', (req, res) => {
   res.status(302).redirect('/docs');
 });

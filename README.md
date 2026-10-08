@@ -73,6 +73,8 @@ Run `npm run check:browser` to test actual searches, pagination, specialist resu
 
 Explanation-filtered searches with `t=3` resolve Dorar's 15 preview links into complete hadith records. A fresh page requires 16 Dorar requests and takes longer than a normal hadith search. This layout provides no total count. The API estimates `hasNextPage` from a full 15-item page.
 
+See the [Vercel Hobby performance measurements](docs/performance/2026-10-08.md) for comparisons, duration breakdowns, budget estimates, and benchmark commands. `DORAR_BROWSER_STRATEGY=isolated` launches and closes a browser for each request. `background` closes it after the response on Vercel. Keep `DORAR_BENCHMARK` unset in production.
+
 ### Deploy Chromium on Vercel
 
 1. Import this repository into Vercel and select Node.js `24.x`.
