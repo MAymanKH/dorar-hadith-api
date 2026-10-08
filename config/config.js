@@ -53,6 +53,7 @@ module.exports = config = {
    * @default 300 seconds
    */
   cacheEach: toNumber(process.env.CACHE_EACH, 300),
+  cacheStableEach: toNumber(process.env.CACHE_STABLE_EACH, 86400),
 
   /** @type {number}
    * @description timeout for HTTP response headers

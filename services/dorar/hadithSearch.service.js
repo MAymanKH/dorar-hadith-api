@@ -142,7 +142,7 @@ const getOneHadithUsingSiteDorarById = async ({ hadithId }) => {
     hadithCleanRegex: /-\s*\:?\s*/g,
   });
 
-  return setCachedResponse(url, result, { length: 1 });
+  return setCachedResponse(url, result, { length: 1 }, config.cacheStableEach);
 };
 
 const getAllSimilarHadithUsingSiteDorar = async ({ similarId }) => {
@@ -169,7 +169,7 @@ const getAllSimilarHadithUsingSiteDorar = async ({ similarId }) => {
     })
     .filter(Boolean);
 
-  return setCachedResponse(url, result, { length: result.length });
+  return setCachedResponse(url, result, { length: result.length }, config.cacheStableEach);
 };
 
 const getAlternateHadithUsingSiteDorar = async ({ alternateId }) => {

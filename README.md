@@ -53,7 +53,7 @@ Vercel uses Chromium directly by default to avoid waiting for a blocked HTTP req
 
 Chromium loads only the main document and its redirects. It skips scripts, styles, images, and frames because the API parses the hadith and sharh content already present in Dorar's HTML.
 
-Successful public API responses are cached in memory for `CACHE_EACH` seconds, which defaults to 300. On Vercel, the CDN also caches these responses for that period and can serve a stale response for up to one hour while refreshing it in the background. Errors are not cached. Check `x-vercel-cache` for CDN hits; `metadata.isCached` describes the in-memory cache when the function generated the response. See [Vercel cache-control headers](https://vercel.com/docs/caching/cache-control-headers).
+Search responses are cached in memory for `CACHE_EACH` seconds, which defaults to 300. Hadith details, explanations by ID, and similar results use `CACHE_STABLE_EACH`, which defaults to 86400. On Vercel, the CDN also caches successful responses for the corresponding period and can serve a stale response for up to one hour while refreshing it in the background. Errors are not cached. Check `x-vercel-cache` for CDN hits; `metadata.isCached` describes the in-memory cache when the function generated the response. See [Vercel cache-control headers](https://vercel.com/docs/caching/cache-control-headers).
 
 To run locally:
 

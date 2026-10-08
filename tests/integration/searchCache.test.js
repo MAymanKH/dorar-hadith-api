@@ -102,3 +102,18 @@ test('upstream failures are never cached as successful responses', async () => {
     response.headers['vercel-cdn-cache-control'],
   ).toBeUndefined();
 });
+
+test('explanations by ID are retained for a day while searches retain five-minute caching', async () => {
+  config.cacheStableEach = 86400;
+  const response = await request(app).get('/v1/site/sharh/123');
+  expect(response.status).toBe(200);
+  expect(response.headers['vercel-cdn-cache-control']).toBe(
+    'max-age=86400, stale-while-revalidate=3600',
+  );
+  const remaining =
+    cache.getTtl('https://www.dorar.net/hadith/sharh/123') -
+    Date.now();
+  expect(remaining).toBeGreaterThan(86399000);
+  expect(remaining).toBeLessThanOrEqual(86400000);
+});
+

@@ -1,5 +1,6 @@
 const AppError = require('../../utils/AppError');
 const serializeQueryParams = require('../../utils/serializeQueryParams');
+const config = require('../../config/config');
 
 const { getCachedResponse, setCachedResponse } = require('../common/cache.service');
 const { fetchDocument } = require('../common/dorarFetch.service');
@@ -53,7 +54,7 @@ const getOneSharhByIdUsingSiteDorar = async ({ sharhId }) => {
   }
 
   const result = await getSharhById(sharhId);
-  return setCachedResponse(url, result, {});
+  return setCachedResponse(url, result, {}, config.cacheStableEach);
 };
 
 const getOneSharhByTextUsingSiteDorar = async ({ text, tab, isForSpecialist }) => {
