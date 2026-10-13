@@ -14,6 +14,10 @@ jest.unstable_mockModule('@sparticuz/chromium', () => ({
   },
 }));
 
+jest.unstable_mockModule('@vercel/functions', () => ({
+  waitUntil: jest.fn(),
+}));
+
 describe('Chromium response and process lifecycle', () => {
   let puppeteer;
   let chromium;
@@ -227,6 +231,33 @@ describe('Chromium response and process lifecycle', () => {
       fetchInBrowser('https://example.com/'),
     ).rejects.toMatchObject({ statusCode: 502 });
     expect(puppeteer.launch).not.toHaveBeenCalled();
+  });
+
+  test('Vercel background cleanup returns the body before closing finishes', async () => {
+    const { waitUntil } = await import('@vercel/functions');
+    waitUntil.mockReset();
+    const previous = process.env.VERCEL;
+    process.env.VERCEL = '1';
+    config.browserStrategy = 'background';
+    let finish;
+    browser.close.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    try {
+      const response = await fetchInBrowser(
+        'https://dorar.net/h/test',
+      );
+      expect(await response.text()).toBe('browser results');
+      expect(waitUntil).toHaveBeenCalledTimes(1);
+      finish();
+      await waitUntil.mock.calls[0][0];
+    } finally {
+      if (previous === undefined) delete process.env.VERCEL;
+      else process.env.VERCEL = previous;
+    }
   });
 
   test('reuses a connected browser and closes each request page', async () => {

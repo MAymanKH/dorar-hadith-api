@@ -148,7 +148,9 @@ const fetchInBrowser = async (url, options = {}) => {
   let timer;
   let closing;
   let timedOut = false;
-  const reuse = (config.browserStrategy || 'reuse') === 'reuse';
+  let succeeded = false;
+  const strategy = config.browserStrategy || 'reuse';
+  const reuse = strategy === 'reuse';
   let release;
   const close = () => {
     if (reuse && !page) return Promise.resolve();
@@ -252,6 +254,7 @@ const fetchInBrowser = async (url, options = {}) => {
         continue;
       headers.set(name, value.replace(/[\r\n]+/g, ', '));
     }
+    succeeded = true;
     return new Response(
       [204, 205, 304].includes(response.status()) ? null : body,
       {
@@ -273,7 +276,22 @@ const fetchInBrowser = async (url, options = {}) => {
     );
   } finally {
     clearTimeout(timer);
-    if (browser) await close().catch(() => {});
+    if (browser) {
+      // The background strategy returns the response first and lets
+      // Vercel finish closing Chromium via waitUntil, so shutdown
+      // never eats into the response budget on serverless.
+      const cleanup = close().catch(() => {});
+      if (strategy === 'background' && succeeded && !timedOut) {
+        if (process.env.VERCEL) {
+          try {
+            const { waitUntil } = await import('@vercel/functions');
+            waitUntil(cleanup);
+          } catch {
+            await cleanup;
+          }
+        } else await cleanup;
+      } else await cleanup;
+    }
     if (reuse && browser) activeSharedPages--;
     if (release) release();
   }

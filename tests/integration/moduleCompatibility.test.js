@@ -1,7 +1,7 @@
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
-test('the app loads and dependencies work without synchronous ESM require support', () => {
+test('the function loads and dependencies work without synchronous ESM require support', () => {
   const result = spawnSync(
     process.execPath,
     [
@@ -9,7 +9,7 @@ test('the app loads and dependencies work without synchronous ESM require suppor
       '-e',
       `
         const assert = require('node:assert/strict');
-        assert.equal(typeof require('./app'), 'function');
+        assert.equal(typeof require('./api'), 'function');
         const { parseHTML } = require('linkedom');
         const { document } = parseHTML('<div class="result"><span>hadith</span></div>');
         assert.equal(document.querySelector('.result > span').textContent, 'hadith');

@@ -20,6 +20,7 @@ const path = require('path');
 const swaggerDocument = YAML.load(path.join(__dirname, 'api-docs', 'openapi.yaml'));
 
 const app = express();
+if (process.env.VERCEL) app.set('trust proxy', 1);
 
 // Security Middleware
 app.use(helmet());

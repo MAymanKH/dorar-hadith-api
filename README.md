@@ -57,6 +57,12 @@ http://localhost:5000
 
 للتحقق من عمل البحث على موقع الدرر السنية، شغّل `npm run check:browser`. لتشغيل اختبارات المشروع، شغّل `npm test`.
 
+## النشر على Vercel
+
+1. انشر فرع `deploy/vercel` واختر `Node.js 24.x`.
+2. اترك `DORAR_FETCH_MODE` غير محدد أو اضبطه على `browser` لاستخدام المتصفح مباشرة. اترك `CHROMIUM_EXECUTABLE_PATH` غير محدد لاستخدام `Chromium` المرفق.
+3. بعد النشر، جرّب `/v1/site/hadith/search?value=المال`. إذا حظر الموقع الطلبات، أضف `DORAR_PROXY_URL` في إعدادات المشروع.
+
 ## Documentation
 
 ### Postman

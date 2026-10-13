@@ -78,12 +78,15 @@ test('a single explanation never substitutes a cached list of explanations', asy
   expect(result.data.sharhMetadata.sharh).toBe('explanation text');
 });
 
-test('successful searches are served from memory while errors are not cached', async () => {
+test('successful searches use memory and CDN caching while errors do not', async () => {
   const success = await request(app)
     .get('/v1/site/hadith/search')
     .query({ value: 'test' });
   expect(success.status).toBe(200);
   expect(success.body.metadata.isCached).toBe(false);
+  expect(success.headers['vercel-cdn-cache-control']).toBe(
+    'max-age=300, stale-while-revalidate=3600',
+  );
   const repeated = await request(app)
     .get('/v1/site/hadith/search')
     .query({ value: 'test' });
@@ -91,6 +94,7 @@ test('successful searches are served from memory while errors are not cached', a
   expect(repeated.body.metadata.isCached).toBe(true);
   const invalid = await request(app).get('/v1/site/hadith/search');
   expect(invalid.status).toBe(400);
+  expect(invalid.headers['vercel-cdn-cache-control']).toBeUndefined();
 });
 
 test('upstream failures are never cached as successful responses', async () => {
@@ -102,6 +106,9 @@ test('upstream failures are never cached as successful responses', async () => {
     .get('/v1/site/hadith/search')
     .query({ value: 'test' });
   expect(response.status).toBe(502);
+  expect(
+    response.headers['vercel-cdn-cache-control'],
+  ).toBeUndefined();
   const retry = await request(app)
     .get('/v1/site/hadith/search')
     .query({ value: 'test' });
@@ -113,6 +120,9 @@ test('explanations by ID are retained for a day while searches retain five-minut
   config.cacheStableEach = 86400;
   const response = await request(app).get('/v1/site/sharh/123');
   expect(response.status).toBe(200);
+  expect(response.headers['vercel-cdn-cache-control']).toBe(
+    'max-age=86400, stale-while-revalidate=3600',
+  );
   const remaining =
     cache.getTtl('https://www.dorar.net/hadith/sharh/123') -
     Date.now();

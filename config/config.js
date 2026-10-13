@@ -18,14 +18,16 @@ const parseProxyUrl = (value) => {
   }
 };
 
-const dorarFetchMode = process.env.DORAR_FETCH_MODE || 'auto';
+const dorarFetchMode =
+  process.env.DORAR_FETCH_MODE ||
+  (process.env.VERCEL ? 'browser' : 'auto');
 if (!['auto', 'http', 'browser'].includes(dorarFetchMode)) {
   throw new Error('DORAR_FETCH_MODE must be auto, http, or browser');
 }
 const browserStrategy = process.env.DORAR_BROWSER_STRATEGY || 'reuse';
-if (!['reuse', 'isolated'].includes(browserStrategy)) {
+if (!['reuse', 'isolated', 'background'].includes(browserStrategy)) {
   throw new Error(
-    'DORAR_BROWSER_STRATEGY must be reuse or isolated',
+    'DORAR_BROWSER_STRATEGY must be reuse, isolated, or background',
   );
 }
 
