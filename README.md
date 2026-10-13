@@ -19,6 +19,35 @@
 
 > يمكنك تعديلهم من ملف [config.js](./config/config.js)
 
+## Upstream access (proxy and headless Chromium)
+
+Dorar may block plain HTTP requests from a server with HTTP `403`.
+The API handles that in two ways:
+
+- `DORAR_FETCH_MODE=auto` (default) tries HTTP first and retries
+  blocked requests through headless Chromium. Set it to `browser` to
+  always use Chromium, or to `http` to disable Chromium.
+- If both paths are blocked, set `DORAR_PROXY_URL` to an HTTP CONNECT
+  proxy whose outbound access Dorar permits:
+
+  ```dotenv
+  DORAR_PROXY_URL=https://username:password@proxy.example:8443
+  ```
+
+  URL-encode special characters in the credentials and keep the value
+  private. Both HTTP and HTTPS proxy URLs are supported.
+
+Chromium needs either the bundled serverless binary (compatible Linux
+x64) or an installed Chrome/Chromium via `CHROMIUM_EXECUTABLE_PATH`.
+`BROWSER_FETCH_TIMEOUT` (default 40s) covers imports, cold startup,
+and navigation; browser shutdown is capped at two seconds. Keep
+`EXPRESS_TIMEOUT=60s` when Chromium is enabled.
+
+Run `npm run check:browser` for a live end-to-end check (it contacts
+Dorar), or with `--auto` to check the HTTP-first fallback instead.
+Run `npm test` for the offline transport, proxy, timeout, and
+compatibility checks.
+
 ## تشغيل الـ API
 
 1. عمل `fork` أو `clone` لهذا المشروع

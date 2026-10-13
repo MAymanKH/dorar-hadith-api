@@ -3,6 +3,26 @@ const toNumber = (value, fallback) => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const parseProxyUrl = (value) => {
+  if (!value?.trim()) return undefined;
+  try {
+    const url = new URL(value.trim());
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('Unsupported proxy protocol');
+    }
+    return url.href;
+  } catch {
+    throw new Error(
+      'DORAR_PROXY_URL must be a valid HTTP or HTTPS proxy URL',
+    );
+  }
+};
+
+const dorarFetchMode = process.env.DORAR_FETCH_MODE || 'auto';
+if (!['auto', 'http', 'browser'].includes(dorarFetchMode)) {
+  throw new Error('DORAR_FETCH_MODE must be auto, http, or browser');
+}
+
 module.exports = config = {
   /** @type {number}
    * @description default port to localhost
@@ -21,7 +41,10 @@ module.exports = config = {
    * @default 24 hours
    * @example 24 * 60 * 60 * 1000 // 24 hours
    */
-  rateLimitEach: toNumber(process.env.RATE_LIMIT_EACH, 24 * 60 * 60 * 1000),
+  rateLimitEach: toNumber(
+    process.env.RATE_LIMIT_EACH,
+    24 * 60 * 60 * 1000,
+  ),
 
   /** @type {number}
    * @description time between cache updates
@@ -31,10 +54,23 @@ module.exports = config = {
   cacheEach: toNumber(process.env.CACHE_EACH, 5),
 
   /** @type {number}
-   * @description timeout for fetch requests
+   * @description timeout for HTTP response headers
    * @default 15000 // 15 seconds
    */
   fetchTimeout: toNumber(process.env.FETCH_TIMEOUT, 15000),
+
+  /** @type {number}
+   * @description budget for Chromium imports, cold startup, and navigation
+   * @default 40000 // 40 seconds
+   */
+  browserFetchTimeout: toNumber(
+    process.env.BROWSER_FETCH_TIMEOUT,
+    40000,
+  ),
+
+  dorarProxyUrl: parseProxyUrl(process.env.DORAR_PROXY_URL),
+  dorarFetchMode,
+  chromiumExecutablePath: process.env.CHROMIUM_EXECUTABLE_PATH,
 
   /** @type {number}
    * @description page size for Dorar API hadith search
@@ -50,9 +86,11 @@ module.exports = config = {
 
   /** @type {string}
    * @description timeout for express timeout middleware
-   * @default 30s // 30 seconds
+   * @default 60s // 30s in HTTP-only mode
    */
-  expressTimeout: process.env.EXPRESS_TIMEOUT || '30s',
+  expressTimeout:
+    process.env.EXPRESS_TIMEOUT ||
+    (dorarFetchMode === 'http' ? '30s' : '60s'),
 
   /** @type {string}
    * @description limit for express.json middleware
