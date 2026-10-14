@@ -22,6 +22,12 @@ const dorarFetchMode = process.env.DORAR_FETCH_MODE || 'auto';
 if (!['auto', 'http', 'browser'].includes(dorarFetchMode)) {
   throw new Error('DORAR_FETCH_MODE must be auto, http, or browser');
 }
+const browserStrategy = process.env.DORAR_BROWSER_STRATEGY || 'reuse';
+if (!['reuse', 'isolated'].includes(browserStrategy)) {
+  throw new Error(
+    'DORAR_BROWSER_STRATEGY must be reuse or isolated',
+  );
+}
 
 module.exports = config = {
   /** @type {number}
@@ -48,10 +54,11 @@ module.exports = config = {
 
   /** @type {number}
    * @description time between cache updates
-   * @default 5 seconds
-   * @example 5 * 1000 // 5 seconds
+   * @default 300 seconds
    */
-  cacheEach: toNumber(process.env.CACHE_EACH, 5),
+  cacheEach: toNumber(process.env.CACHE_EACH, 300),
+  cacheStableEach: toNumber(process.env.CACHE_STABLE_EACH, 86400),
+  browserStrategy,
 
   /** @type {number}
    * @description timeout for HTTP response headers

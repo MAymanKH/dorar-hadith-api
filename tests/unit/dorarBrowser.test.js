@@ -29,11 +29,17 @@ describe('Chromium response and process lifecycle', () => {
     config = require('../../config/config');
     config.chromiumExecutablePath = '/test/chromium';
     config.dorarProxyUrl = undefined;
+    config.fetchTimeout = 1000;
     config.browserFetchTimeout = 1000;
+    config.browserStrategy = 'isolated';
     ({
       fetchInBrowser,
     } = require('../../services/common/dorarBrowser.service'));
     page = {
+      close: jest.fn().mockResolvedValue(),
+      setRequestInterception: jest.fn(),
+      on: jest.fn(),
+      mainFrame: () => 'main-frame',
       setUserAgent: jest.fn(),
       authenticate: jest.fn(),
       setExtraHTTPHeaders: jest.fn(),
@@ -51,6 +57,8 @@ describe('Chromium response and process lifecycle', () => {
       }),
     };
     browser = {
+      connected: true,
+      version: jest.fn().mockResolvedValue('Chrome/153'),
       newPage: jest.fn().mockResolvedValue(page),
       userAgent: async () => 'HeadlessChrome/153.0.0.0',
       close: jest.fn().mockResolvedValue(),
@@ -85,7 +93,31 @@ describe('Chromium response and process lifecycle', () => {
     expect(browser.close).toHaveBeenCalledTimes(1);
   });
 
+  test('loads main navigation and redirects while skipping page assets and iframes', async () => {
+    await fetchInBrowser('https://dorar.net/hadith/search?q=test');
+    expect(page.setRequestInterception).toHaveBeenCalledWith(true);
+    const intercept = page.on.mock.calls.find(
+      ([event]) => event === 'request',
+    )[1];
+    for (const [navigation, frame, allowed] of [
+      [true, 'main-frame', true],
+      [false, 'main-frame', false],
+      [true, 'iframe', false],
+    ]) {
+      const request = {
+        isNavigationRequest: () => navigation,
+        frame: () => frame,
+        continue: jest.fn().mockResolvedValue(),
+        abort: jest.fn().mockResolvedValue(),
+      };
+      await intercept(request);
+      expect(request.continue).toHaveBeenCalledTimes(allowed ? 1 : 0);
+      expect(request.abort).toHaveBeenCalledTimes(allowed ? 0 : 1);
+    }
+  });
+
   test('a stalled navigation closes Chromium and returns a timeout', async () => {
+    config.fetchTimeout = 30;
     config.browserFetchTimeout = 30;
     let rejectNavigation;
     page.goto.mockImplementation(
@@ -102,6 +134,48 @@ describe('Chromium response and process lifecycle', () => {
     ).rejects.toMatchObject({ statusCode: 408 });
     expect(browser.close).toHaveBeenCalledTimes(1);
   });
+
+  test('cold startup uses the browser budget and leaves only the remaining time for launch', async () => {
+    config.chromiumExecutablePath = undefined;
+    config.fetchTimeout = 15000;
+    config.browserFetchTimeout = 40000;
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(0);
+    chromium.executablePath.mockImplementation(async () => {
+      clock.mockReturnValue(16000);
+      return '/tmp/chromium';
+    });
+    try {
+      const response = await fetchInBrowser(
+        'https://dorar.net/hadith/search?q=test',
+      );
+      expect(response.status).toBe(200);
+      expect(puppeteer.launch).toHaveBeenCalledWith(
+        expect.objectContaining({ timeout: 24000 }),
+      );
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  test('a stalled shutdown kills the child process and still returns the result', async () => {
+    let finishClose;
+    browser.close.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishClose = resolve;
+        }),
+    );
+    const kill = jest.fn(() => {
+      finishClose();
+      return true;
+    });
+    browser.process = () => ({ kill });
+    const response = await fetchInBrowser(
+      'https://dorar.net/hadith/search?q=test',
+    );
+    expect(response.status).toBe(200);
+    expect(kill).toHaveBeenCalledWith('SIGKILL');
+  }, 4000);
 
   test('extracts the serverless binary once but isolates requests in separate browsers', async () => {
     config.chromiumExecutablePath = undefined;
@@ -153,5 +227,112 @@ describe('Chromium response and process lifecycle', () => {
       fetchInBrowser('https://example.com/'),
     ).rejects.toMatchObject({ statusCode: 502 });
     expect(puppeteer.launch).not.toHaveBeenCalled();
+  });
+
+  test('reuses a connected browser and closes each request page', async () => {
+    config.browserStrategy = 'reuse';
+    await fetchInBrowser('https://dorar.net/h/first');
+    await fetchInBrowser('https://dorar.net/h/second');
+    expect(puppeteer.launch).toHaveBeenCalledTimes(1);
+    expect(browser.newPage).toHaveBeenCalledTimes(2);
+    expect(page.close).toHaveBeenCalledTimes(2);
+    expect(browser.close).not.toHaveBeenCalled();
+    browser.connected = false;
+    await fetchInBrowser('https://dorar.net/h/third');
+    expect(puppeteer.launch).toHaveBeenCalledTimes(2);
+  });
+
+  test('a reused page timeout closes that page without closing the shared browser', async () => {
+    config.browserStrategy = 'reuse';
+    config.browserFetchTimeout = 30;
+    let reject;
+    page.goto.mockImplementation(
+      () =>
+        new Promise((resolve, rejectPromise) => {
+          reject = rejectPromise;
+        }),
+    );
+    page.close.mockImplementation(async () =>
+      reject(new Error('page closed')),
+    );
+    await expect(
+      fetchInBrowser('https://dorar.net/h/stalled'),
+    ).rejects.toMatchObject({ statusCode: 408 });
+    expect(page.close).toHaveBeenCalledTimes(1);
+    expect(browser.close).not.toHaveBeenCalled();
+  });
+
+  test('closes a reused page that opens after the request timeout', async () => {
+    config.browserStrategy = 'reuse';
+    config.browserFetchTimeout = 30;
+    browser.newPage.mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(() => resolve(page), 60)),
+    );
+    await expect(
+      fetchInBrowser('https://dorar.net/h/late-page'),
+    ).rejects.toMatchObject({ statusCode: 408 });
+    expect(page.close).toHaveBeenCalledTimes(1);
+    expect(page.goto).not.toHaveBeenCalled();
+    expect(browser.close).not.toHaveBeenCalled();
+
+    config.browserFetchTimeout = 1000;
+    expect((await fetchInBrowser('https://dorar.net/h/retry')).status).toBe(200);
+    expect(puppeteer.launch).toHaveBeenCalledTimes(1);
+  });
+
+  test('recycles an idle shared browser after ten uses', async () => {
+    config.browserStrategy = 'reuse';
+    for (let i = 0; i < 11; i++)
+      await fetchInBrowser(`https://dorar.net/h/${i}`);
+    expect(puppeteer.launch).toHaveBeenCalledTimes(2);
+    expect(browser.close).toHaveBeenCalledTimes(1);
+  });
+
+  test('a browser that stops responding is killed and replaced', async () => {
+    config.browserStrategy = 'reuse';
+    await fetchInBrowser('https://dorar.net/h/first');
+    browser.version.mockRejectedValueOnce(
+      new Error('closed connection'),
+    );
+    const kill = jest.fn();
+    browser.process = () => ({ kill });
+    await fetchInBrowser('https://dorar.net/h/second');
+    expect(kill).toHaveBeenCalledWith('SIGKILL');
+    expect(puppeteer.launch).toHaveBeenCalledTimes(2);
+  });
+
+  test('limits shared-browser work to two simultaneous pages', async () => {
+    config.browserStrategy = 'reuse';
+    const response = await page.goto();
+    const opened = [];
+    browser.newPage.mockImplementation(async () => {
+      let finish;
+      const next = {
+        ...page,
+        close: jest.fn().mockResolvedValue(),
+        goto: jest.fn(
+          () =>
+            new Promise((resolve) => {
+              finish = () => resolve(response);
+            }),
+        ),
+      };
+      opened.push({ next, finish: () => finish() });
+      return next;
+    });
+    const requests = [0, 1, 2].map((i) =>
+      fetchInBrowser(`https://dorar.net/h/parallel${i}`),
+    );
+    for (let i = 0; i < 20 && opened.length < 2; i++)
+      await new Promise(setImmediate);
+    expect(opened).toHaveLength(2);
+    opened[0].finish();
+    for (let i = 0; i < 20 && opened.length < 3; i++)
+      await new Promise(setImmediate);
+    expect(opened).toHaveLength(3);
+    opened[1].finish();
+    opened[2].finish();
+    await Promise.all(requests);
+    expect(puppeteer.launch).toHaveBeenCalledTimes(1);
   });
 });

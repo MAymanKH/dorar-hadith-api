@@ -14,7 +14,7 @@
 
 ## تنبيه
 
-- يتم عمل `cache` لكل عملية بحث لمدة `5` ثواني
+- يتم عمل `cache` لكل عملية بحث لمدة `5` دقائق
 - هناك حد للاستخدام: `100` عملية بحث في اليوم لكل `IP`
 
 > يمكنك تعديلهم من ملف [config.js](./config/config.js)
@@ -42,6 +42,19 @@ x64) or an installed Chrome/Chromium via `CHROMIUM_EXECUTABLE_PATH`.
 `BROWSER_FETCH_TIMEOUT` (default 40s) covers imports, cold startup,
 and navigation; browser shutdown is capped at two seconds. Keep
 `EXPRESS_TIMEOUT=60s` when Chromium is enabled.
+
+The default `DORAR_BROWSER_STRATEGY=reuse` keeps one Chromium process
+per server instance with at most two active pages, closing each page
+after its request. The browser is health-checked before reuse and
+recycled when idle after ten requests or past 256 MB of sampled RSS.
+Set the strategy to `isolated` to launch and close a browser per
+request. Identical concurrent requests share one upstream fetch and
+one HTML parse. Chromium loads only the main document and its
+redirects, skipping scripts, styles, images, and frames.
+
+Search responses stay in memory for `CACHE_EACH` seconds (default
+300). Hadith details, explanations by ID, and similar results use
+`CACHE_STABLE_EACH` (default 86400). Errors are never cached.
 
 Run `npm run check:browser` for a live end-to-end check (it contacts
 Dorar), or with `--auto` to check the HTTP-first fallback instead.

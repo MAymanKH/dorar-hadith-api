@@ -89,4 +89,60 @@ describe('Dorar transport selection', () => {
     ).rejects.toMatchObject({ statusCode: 502 });
     expect(fetchInBrowser).toHaveBeenCalledTimes(1);
   });
+
+  test('simultaneous identical requests share one fetch and receive independent bodies', async () => {
+    config.dorarFetchMode = 'browser';
+    const finish = [];
+    fetchInBrowser.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish.push(resolve);
+        }),
+    );
+    const requests = [0, 1, 2].map(() =>
+      fetchWithTimeout('https://dorar.net/h/same'),
+    );
+    finish.forEach((resolve) =>
+      resolve(new Response('shared results')),
+    );
+    const responses = await Promise.all(requests);
+    expect(
+      await Promise.all(responses.map((response) => response.text())),
+    ).toEqual(['shared results', 'shared results', 'shared results']);
+    expect(fetchInBrowser).toHaveBeenCalledTimes(1);
+  });
+
+  test('a failed shared fetch does not prevent a later retry', async () => {
+    config.dorarFetchMode = 'browser';
+    fetchInBrowser.mockRejectedValueOnce(new Error('failed fetch'));
+    const failures = await Promise.allSettled(
+      [0, 1].map(() => fetchWithTimeout('https://dorar.net/h/retry')),
+    );
+    expect(failures.map((result) => result.status)).toEqual([
+      'rejected',
+      'rejected',
+    ]);
+    fetchInBrowser.mockResolvedValueOnce(new Response('recovered'));
+    expect(
+      await (
+        await fetchWithTimeout('https://dorar.net/h/retry')
+      ).text(),
+    ).toBe('recovered');
+    expect(fetchInBrowser).toHaveBeenCalledTimes(2);
+  });
+
+  test('different URLs and requests with custom headers remain separate', async () => {
+    config.dorarFetchMode = 'browser';
+    fetchInBrowser.mockImplementation(
+      async () => new Response('results'),
+    );
+    await Promise.all([
+      fetchWithTimeout('https://dorar.net/h/one'),
+      fetchWithTimeout('https://dorar.net/h/two'),
+      fetchWithTimeout('https://dorar.net/h/one', {
+        headers: { Accept: 'text/html' },
+      }),
+    ]);
+    expect(fetchInBrowser).toHaveBeenCalledTimes(3);
+  });
 });

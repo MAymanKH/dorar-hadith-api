@@ -2,6 +2,12 @@ const AppError = require('../../utils/AppError');
 const config = require('../../config/config');
 
 let executablePromise;
+let sharedBrowser;
+let poolOperation = Promise.resolve();
+let sharedUses = 0;
+let activeSharedPages = 0;
+let occupiedSlots = 0;
+const waiting = [];
 
 const killBrowser = (browser) => {
   try {
@@ -9,11 +15,11 @@ const killBrowser = (browser) => {
   } catch {}
 };
 
-const closeBrowser = async (browser) => {
+const closeBrowser = async (browser, target = browser) => {
   let timer;
   try {
     await Promise.race([
-      browser.close().catch(() => killBrowser(browser)),
+      target.close().catch(() => killBrowser(browser)),
       new Promise((resolve) => {
         timer = setTimeout(() => {
           killBrowser(browser);
@@ -24,6 +30,107 @@ const closeBrowser = async (browser) => {
   } finally {
     clearTimeout(timer);
   }
+};
+
+// Best-effort resident memory of the browser process, used to recycle
+// long-lived instances before they grow without bound.
+const browserRssMB = (browser) => {
+  try {
+    const pid = browser.process().pid;
+    const status = require('node:fs').readFileSync(
+      `/proc/${pid}/status`,
+      'utf8',
+    );
+    return Number(status.match(/VmRSS:\s+(\d+)/)?.[1] || 0) / 1024;
+  } catch {
+    return 0;
+  }
+};
+
+const releaseSlot = () => {
+  occupiedSlots--;
+  const next = waiting.shift();
+  if (next) {
+    clearTimeout(next.timer);
+    occupiedSlots++;
+    next.resolve(releaseSlot);
+  }
+};
+
+const acquireSlot = (timeout) => {
+  if (timeout <= 0)
+    return Promise.reject(
+      new AppError(
+        'Chromium request timeout. Please try again later.',
+        408,
+      ),
+    );
+  if (occupiedSlots < 2) {
+    occupiedSlots++;
+    return Promise.resolve(releaseSlot);
+  }
+  return new Promise((resolve, reject) => {
+    const entry = { resolve };
+    entry.timer = setTimeout(() => {
+      waiting.splice(waiting.indexOf(entry), 1);
+      reject(
+        new AppError(
+          'Chromium request timeout. Please try again later.',
+          408,
+        ),
+      );
+    }, timeout);
+    waiting.push(entry);
+  });
+};
+
+const getSharedBrowser = (launch) => {
+  const operation = poolOperation.then(async () => {
+    if (sharedBrowser) {
+      const existing = await sharedBrowser;
+      let healthy = existing.connected;
+      if (healthy) {
+        let timer;
+        try {
+          await Promise.race([
+            existing.version(),
+            new Promise((resolve, reject) => {
+              timer = setTimeout(
+                () => reject(new Error('Browser stopped responding')),
+                2000,
+              );
+            }),
+          ]);
+        } catch {
+          healthy = false;
+          killBrowser(existing);
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      if (
+        !healthy ||
+        (!activeSharedPages &&
+          (sharedUses >= 10 || browserRssMB(existing) >= 256))
+      ) {
+        sharedBrowser = undefined;
+        if (healthy) await closeBrowser(existing);
+      }
+    }
+    if (!sharedBrowser) {
+      sharedUses = 0;
+      sharedBrowser = launch().catch((error) => {
+        sharedBrowser = undefined;
+        throw error;
+      });
+    }
+    const browser = await sharedBrowser;
+    sharedUses++;
+    activeSharedPages++;
+    return browser;
+  });
+  poolOperation = operation.catch(() => {});
+  return operation;
 };
 
 const fetchInBrowser = async (url, options = {}) => {
@@ -37,14 +144,22 @@ const fetchInBrowser = async (url, options = {}) => {
 
   const started = Date.now();
   let browser;
+  let page;
   let timer;
   let closing;
   let timedOut = false;
-  const close = () => (closing ||= closeBrowser(browser));
+  const reuse = (config.browserStrategy || 'reuse') === 'reuse';
+  let release;
+  const close = () => {
+    if (reuse && !page) return Promise.resolve();
+    return (closing ||= closeBrowser(browser, reuse ? page : browser));
+  };
 
   try {
-    // Dynamic imports: newer css-select ships ESM-only code that
-    // cannot be loaded with a synchronous require from CommonJS.
+    if (reuse)
+      release = await acquireSlot(
+        config.browserFetchTimeout - (Date.now() - started),
+      );
     const [puppeteer, { default: chromium }] = await Promise.all([
       import('puppeteer-core'),
       import('@sparticuz/chromium'),
@@ -73,25 +188,29 @@ const fetchInBrowser = async (url, options = {}) => {
       ? new URL(config.dorarProxyUrl)
       : undefined;
 
-    browser = await puppeteer.launch({
-      executablePath,
-      headless: config.chromiumExecutablePath ? true : 'shell',
-      args: [
-        ...args,
-        '--disable-blink-features=AutomationControlled',
-        ...(proxy ? [`--proxy-server=${proxy.origin}`] : []),
-      ],
-      ignoreDefaultArgs: ['--enable-automation'],
-      timeout: remaining(),
-      protocolTimeout: config.browserFetchTimeout,
-    });
+    const launch = () =>
+      puppeteer.launch({
+        executablePath,
+        headless: config.chromiumExecutablePath ? true : 'shell',
+        args: [
+          ...args,
+          '--disable-blink-features=AutomationControlled',
+          ...(proxy ? [`--proxy-server=${proxy.origin}`] : []),
+        ],
+        ignoreDefaultArgs: ['--enable-automation'],
+        timeout: remaining(),
+        protocolTimeout: config.browserFetchTimeout,
+      });
+
+    browser = reuse ? await getSharedBrowser(launch) : await launch();
 
     timer = setTimeout(() => {
       timedOut = true;
       close().catch(() => {});
     }, remaining());
 
-    const page = await browser.newPage();
+    page = await browser.newPage();
+    remaining();
     await page.setUserAgent(
       (await browser.userAgent()).replace('HeadlessChrome', 'Chrome'),
     );
@@ -106,6 +225,18 @@ const fetchInBrowser = async (url, options = {}) => {
         Object.fromEntries(new Headers(options.headers)),
       );
     }
+    // The API parses hadith content already present in the HTML, so
+    // only the main document and its redirects are loaded. Scripts,
+    // styles, images, and frames are skipped.
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      const navigation =
+        request.isNavigationRequest() &&
+        request.frame() === page.mainFrame();
+      return (
+        navigation ? request.continue() : request.abort()
+      ).catch(() => {});
+    });
     const response = await page.goto(target.href, {
       waitUntil: 'domcontentloaded',
       timeout: remaining(),
@@ -143,7 +274,16 @@ const fetchInBrowser = async (url, options = {}) => {
   } finally {
     clearTimeout(timer);
     if (browser) await close().catch(() => {});
+    if (reuse && browser) activeSharedPages--;
+    if (release) release();
   }
 };
 
-module.exports = { fetchInBrowser };
+const closeSharedBrowser = async () => {
+  await poolOperation;
+  const pending = sharedBrowser;
+  sharedBrowser = undefined;
+  if (pending) await closeBrowser(await pending);
+};
+
+module.exports = { fetchInBrowser, closeSharedBrowser };
