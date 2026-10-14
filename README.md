@@ -15,55 +15,10 @@
 ## تنبيه
 
 - يتم عمل `cache` لكل عملية بحث لمدة `5` دقائق
+- يتم حفظ تفاصيل الأحاديث وشروحها والأحاديث المشابهة لمدة يوم، ويمكن تعديل المدة عبر `CACHE_STABLE_EACH` في ملف `.env`
 - هناك حد للاستخدام: `100` عملية بحث في اليوم لكل `IP`
 
 > يمكنك تعديلهم من ملف [config.js](./config/config.js)
-
-## Upstream access (proxy and headless Chromium)
-
-Dorar may block plain HTTP requests from a server with HTTP `403`.
-The API handles that in two ways:
-
-- `DORAR_FETCH_MODE=auto` (default) tries HTTP first and retries
-  blocked requests through headless Chromium. Set it to `browser` to
-  always use Chromium, or to `http` to disable Chromium.
-- If both paths are blocked, set `DORAR_PROXY_URL` to an HTTP CONNECT
-  proxy whose outbound access Dorar permits:
-
-  ```dotenv
-  DORAR_PROXY_URL=https://username:password@proxy.example:8443
-  ```
-
-  URL-encode special characters in the credentials and keep the value
-  private. Both HTTP and HTTPS proxy URLs are supported.
-
-Chromium needs either the bundled serverless binary (compatible Linux
-x64) or an installed Chrome/Chromium via `CHROMIUM_EXECUTABLE_PATH`.
-`BROWSER_FETCH_TIMEOUT` (default 40s) covers imports, cold startup,
-and navigation; browser shutdown is capped at two seconds. Keep
-`EXPRESS_TIMEOUT=60s` when Chromium is enabled.
-
-The default `DORAR_BROWSER_STRATEGY=reuse` keeps one Chromium process
-per server instance with at most two active pages, closing each page
-after its request. The browser is health-checked before reuse and
-recycled when idle after ten requests or past 256 MB of sampled RSS.
-Set the strategy to `isolated` to launch and close a browser per
-request. Identical concurrent requests share one upstream fetch and
-one HTML parse. Chromium loads only the main document and its
-redirects, skipping scripts, styles, images, and frames.
-
-Search responses stay in memory for `CACHE_EACH` seconds (default
-300). Hadith details, explanations by ID, and similar results use
-`CACHE_STABLE_EACH` (default 86400). Errors are never cached.
-
-Explanation-filtered searches with `t=3` resolve Dorar's preview links
-into complete hadith records; the API estimates `hasNextPage` from a
-full 15-item page since that layout provides no total count.
-
-Run `npm run check:browser` for a live end-to-end check (it contacts
-Dorar), or with `--auto` to check the HTTP-first fallback instead.
-Run `npm test` for the offline transport, proxy, timeout, and
-compatibility checks.
 
 ## تشغيل الـ API
 
@@ -90,6 +45,17 @@ http://localhost:5000
 ```
 
 7. استخدمه على `localhost` كما تريد أو ارفعه على استضافة أو سيرفر خاص بك
+
+## الاتصال بالدرر السنية
+
+إذا رفض موقع الدرر السنية الطلب بكود `403`، يعيد الـ `API` المحاولة تلقائيًا عبر `Chromium`. يمكنك تغيير `DORAR_FETCH_MODE` في ملف `.env` إلى `browser` لاستخدام المتصفح دائمًا، أو `http` لاستخدام طلبات `HTTP` فقط.
+
+- على `Linux x64` يمكنك استخدام `Chromium` المرفق. لاستخدام نسخة مثبتة من `Chrome` أو `Chromium`، حدّد مسارها في `CHROMIUM_EXECUTABLE_PATH`.
+- إذا استمر الحظر، اضبط `DORAR_PROXY_URL` على رابط `proxy` يسمح بالوصول إلى الموقع.
+
+راجع [.env.example](./.env.example) لباقي إعدادات الاتصال، واترك `EXPRESS_TIMEOUT=60s` عند استخدام المتصفح.
+
+للتحقق من عمل البحث على موقع الدرر السنية، شغّل `npm run check:browser`. لتشغيل اختبارات المشروع، شغّل `npm test`.
 
 ## Documentation
 
