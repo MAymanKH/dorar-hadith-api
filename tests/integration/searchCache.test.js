@@ -119,3 +119,43 @@ test('explanations by ID are retained for a day while searches retain five-minut
   expect(remaining).toBeGreaterThan(86399000);
   expect(remaining).toBeLessThanOrEqual(86400000);
 });
+
+test('sharh pages parse labels rather than relying on field order', async () => {
+  const response = await sharh.getOneSharhByIdUsingSiteDorar({
+    sharhId: '123',
+  });
+  expect(response.data.rawi).toBe('rawi');
+  expect(response.data.grade).toBe('sahih');
+  expect(response.data.hadithId).toBe('abc123');
+});
+
+test('the app sharh filter resolves explanation cards to complete hadiths', async () => {
+  fetchDocument.mockImplementation(
+    async (url) =>
+      parseHTML(
+        url.includes('/hadith/sharh/')
+          ? sharhHtml
+          : '<div id="cntnt"><article><a href="/hadith/sharh/123"><h5>preview</h5></a></article></div><div id="results-end" page="1"></div>',
+      ).document,
+  );
+  const queryParams = { value: 'test', t: '3' };
+  const response = await hadith.searchUsingSiteDorar({
+    ...options,
+    queryParams,
+  });
+  expect(response.data).toHaveLength(1);
+  expect(response.data[0].hadithId).toBe('abc123');
+  expect(response.data[0].rawi).toBe('rawi');
+  expect(response.data[0].grade).toBe('sahih');
+  expect(response.data[0].sharhMetadata.sharh).toBe(
+    'explanation text',
+  );
+  expect(response.metadata.hasNextPage).toBe(false);
+  const html = await hadith.searchUsingSiteDorar({
+    ...options,
+    queryParams,
+    isRemoveHTML: false,
+  });
+  expect(html.data[0].hadith).toContain('<h5>hadith text</h5>');
+  expect(html.metadata.removeHTML).toBe(false);
+});

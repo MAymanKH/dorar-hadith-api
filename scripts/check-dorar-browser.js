@@ -6,9 +6,17 @@ process.env.DORAR_FETCH_MODE = process.argv.includes('--auto')
 const assert = require('node:assert/strict');
 const app = require('../app');
 const cache = require('../utils/cache');
+const {
+  closeSharedBrowser,
+} = require('../services/common/dorarBrowser.service');
 
 const checks = [
   ['money', '/v1/site/hadith/search', { value: 'المال' }],
+  [
+    'sharh filter',
+    '/v1/site/hadith/search',
+    { value: 'المال', t: '3' },
+  ],
   ['intentions', '/v1/site/hadith/search', { value: 'إنما الأعمال' }],
   [
     'page 2',
@@ -101,6 +109,7 @@ const checks = [
       );
     }
   } finally {
+    await closeSharedBrowser();
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
   }

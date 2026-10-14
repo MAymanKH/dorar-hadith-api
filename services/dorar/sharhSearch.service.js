@@ -1,11 +1,12 @@
 const AppError = require('../../utils/AppError');
 const serializeQueryParams = require('../../utils/serializeQueryParams');
 const config = require('../../config/config');
+const { parseHadithInfo } = require('../../utils/parseHadithInfo');
 
 const { getCachedResponse, setCachedResponse } = require('../common/cache.service');
 const { fetchDocument } = require('../common/dorarFetch.service');
 
-const getSharhById = async (sharhId) => {
+const getSharhById = async (sharhId, isRemoveHTML = true) => {
   if (!sharhId) {
     throw new AppError('Sharh ID is required', 400);
   }
@@ -17,10 +18,20 @@ const getSharhById = async (sharhId) => {
     throw new AppError('Invalid response structure from Dorar', 502);
   }
 
-  const hadith = article.textContent.replace(/-\s*/g, '').trim();
-  const [rawi, mohdith, book, numberOrPage, grade, takhrij] = [
-    ...doc.querySelectorAll('.primary-text-color'),
-  ].map((el) => el.textContent.trim());
+  const hadith = isRemoveHTML
+    ? article.textContent.replace(/-\s*/g, '').trim()
+    : article.innerHTML.trim();
+  const { rawi, mohdith, book, numberOrPage, grade, takhrij } =
+    parseHadithInfo(doc);
+  const hadithId = [...doc.querySelectorAll('a[tag]')]
+    .find(
+      (link) =>
+        link
+          .getAttribute('href')
+          ?.endsWith(`/hadith/sharh/${sharhId}`) &&
+        /^[A-Za-z0-9_-]+$/.test(link.getAttribute('tag')),
+    )
+    ?.getAttribute('tag');
 
   const sharhElement = doc.querySelector('.text-justify')?.nextElementSibling;
   if (!sharhElement) {
@@ -29,6 +40,8 @@ const getSharhById = async (sharhId) => {
 
   return {
     hadith,
+    hadithId,
+    categories: [],
     rawi,
     mohdith,
     book,
@@ -45,16 +58,20 @@ const getSharhById = async (sharhId) => {
   };
 };
 
-const getOneSharhByIdUsingSiteDorar = async ({ sharhId }) => {
+const getOneSharhByIdUsingSiteDorar = async ({
+  sharhId,
+  isRemoveHTML = true,
+}) => {
   const url = `https://www.dorar.net/hadith/sharh/${sharhId}`;
 
-  const cached = getCachedResponse(url);
+  const key = isRemoveHTML ? url : `${url}:removehtml=false`;
+  const cached = getCachedResponse(key);
   if (cached) {
     return cached;
   }
 
-  const result = await getSharhById(sharhId);
-  return setCachedResponse(url, result, {}, config.cacheStableEach);
+  const result = await getSharhById(sharhId, isRemoveHTML);
+  return setCachedResponse(key, result, {}, config.cacheStableEach);
 };
 
 const getOneSharhByTextUsingSiteDorar = async ({ text, tab, isForSpecialist }) => {
@@ -124,7 +141,12 @@ const getAllSharhUsingSiteDorar = async ({ queryParams, tab, isRemoveHTML, isFor
     };
   }
 
-  const result = await Promise.all(sharhIds.map((id) => getSharhById(id)));
+  const responses = await Promise.all(
+    sharhIds.map((sharhId) =>
+      getOneSharhByIdUsingSiteDorar({ sharhId, isRemoveHTML }),
+    ),
+  );
+  const result = responses.map((response) => response.data);
   const metadata = {
     length: result.length,
     page: queryParams.page,

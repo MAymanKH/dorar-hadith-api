@@ -56,6 +56,10 @@ Search responses stay in memory for `CACHE_EACH` seconds (default
 300). Hadith details, explanations by ID, and similar results use
 `CACHE_STABLE_EACH` (default 86400). Errors are never cached.
 
+Explanation-filtered searches with `t=3` resolve Dorar's preview links
+into complete hadith records; the API estimates `hasNextPage` from a
+full 15-item page since that layout provides no total count.
+
 Run `npm run check:browser` for a live end-to-end check (it contacts
 Dorar), or with `--auto` to check the HTTP-first fallback instead.
 Run `npm test` for the offline transport, proxy, timeout, and
