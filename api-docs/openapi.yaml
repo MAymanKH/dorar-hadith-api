@@ -156,6 +156,27 @@ paths:
             items:
               type: string
           description: Rawi (transmitter) IDs
+        - in: query
+          name: xrawi[]
+          schema:
+            type: array
+            items:
+              type: string
+          description: Excluded narrator catalog IDs. Do not combine with an inclusion list for the same filter. Filtered pages may be empty; continue using hasNextPage.
+        - in: query
+          name: xm[]
+          schema:
+            type: array
+            items:
+              type: string
+          description: Excluded scholar catalog IDs. Do not combine with an inclusion list for the same filter. Filtered pages may be empty; continue using hasNextPage.
+        - in: query
+          name: xs[]
+          schema:
+            type: array
+            items:
+              type: string
+          description: Excluded book catalog IDs. Do not combine with an inclusion list for the same filter. Filtered pages may be empty; continue using hasNextPage.
       responses:
         '200':
           description: Successful response
@@ -492,6 +513,12 @@ components:
               type: integer
             numberOfSpecialist:
               type: integer
+            exclusionsApplied:
+              type: boolean
+              description: True when compact exclusions were applied to this upstream page
+            upstreamTotal:
+              type: integer
+              description: Unfiltered upstream total, when known; filtered totals are omitted
             isCached:
               type: boolean
         data:

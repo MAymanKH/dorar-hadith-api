@@ -1,3 +1,4 @@
+const { parseExclusions } = require('./hadithExclusions.service');
 const serializeQueryParams = require('../../utils/serializeQueryParams');
 const AppError = require('../../utils/AppError');
 const config = require('../../config/config');
@@ -60,7 +61,7 @@ const searchUsingAPIDorar = async ({ queryParams, isRemoveHTML }) => {
   return setCachedResponse(key, result, metadata);
 };
 
-const searchUsingSiteDorar = async ({ queryParams, tab, isRemoveHTML, isForSpecialist }) => {
+const searchSitePage = async ({ queryParams, tab, isRemoveHTML, isForSpecialist }) => {
   const query = serializeQueryParams(queryParams).replace('value=', 'q=') || '';
   const url = `https://www.dorar.net/hadith/search?${query}${tab === 'specialist' ? '&all' : ''}`;
   const key = `hadith-search:${url}:removehtml=${isRemoveHTML}`;
@@ -156,6 +157,25 @@ const searchUsingSiteDorar = async ({ queryParams, tab, isRemoveHTML, isForSpeci
   };
 
   return setCachedResponse(key, result, metadata);
+};
+
+const searchUsingSiteDorar = async (options) => {
+  const exclusions = parseExclusions(options.queryParams);
+  const response = await searchSitePage({ ...options, queryParams: exclusions.query });
+  if (!exclusions.active) return response;
+  const data = response.data.filter(exclusions.keep);
+  const { total, totalPages, numberOfNonSpecialist, numberOfSpecialist, ...metadata } = response.metadata;
+  return {
+    ...response,
+    data,
+    metadata: {
+      ...metadata,
+      length: data.length,
+      currentPageCount: data.length,
+      upstreamTotal: total,
+      exclusionsApplied: true,
+    },
+  };
 };
 
 const getOneHadithUsingSiteDorarById = async ({ hadithId }) => {
