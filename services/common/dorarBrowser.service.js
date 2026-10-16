@@ -145,7 +145,6 @@ const fetchInBrowser = async (url, options = {}) => {
   const started = Date.now();
   let browser;
   let page;
-  let timer;
   let closing;
   let timedOut = false;
   let succeeded = false;
@@ -154,18 +153,51 @@ const fetchInBrowser = async (url, options = {}) => {
   let release;
   const close = () => {
     if (reuse && !page) return Promise.resolve();
-    return (closing ||= closeBrowser(browser, reuse ? page : browser));
+    return (closing ||= closeBrowser(
+      browser,
+      reuse ? page : browser,
+    ));
   };
+
+  const timeoutError = () =>
+    new AppError(
+      'Chromium request timeout. Please try again later.',
+      408,
+    );
+  let timer;
+  const deadline = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      if (browser && reuse && !page) killBrowser(browser);
+      reject(timeoutError());
+    }, config.browserFetchTimeout);
+  });
+  const wait = (operation, disposeLate) =>
+    Promise.race([
+      Promise.resolve(operation).then(async (value) => {
+        if (timedOut) {
+          if (disposeLate) await disposeLate(value);
+          throw timeoutError();
+        }
+        return value;
+      }),
+      deadline,
+    ]);
 
   try {
     if (reuse)
-      release = await acquireSlot(
-        config.browserFetchTimeout - (Date.now() - started),
+      release = await wait(
+        acquireSlot(
+          config.browserFetchTimeout - (Date.now() - started),
+        ),
+        (releaseLate) => releaseLate(),
       );
-    const [puppeteer, { default: chromium }] = await Promise.all([
-      import('puppeteer-core'),
-      import('@sparticuz/chromium'),
-    ]);
+    const [puppeteer, { default: chromium }] = await wait(
+      Promise.all([
+        import('puppeteer-core'),
+        import('@sparticuz/chromium'),
+      ]),
+    );
     const remaining = () => {
       const time =
         config.browserFetchTimeout - (Date.now() - started);
@@ -182,7 +214,8 @@ const fetchInBrowser = async (url, options = {}) => {
       });
     }
     const executablePath =
-      config.chromiumExecutablePath || (await executablePromise);
+      config.chromiumExecutablePath ||
+      (await wait(executablePromise));
     const args = config.chromiumExecutablePath
       ? ['--no-sandbox', '--disable-dev-shm-usage']
       : chromium.args;
@@ -191,46 +224,59 @@ const fetchInBrowser = async (url, options = {}) => {
       : undefined;
 
     const launch = () =>
-      puppeteer.launch({
-        executablePath,
-        headless: config.chromiumExecutablePath ? true : 'shell',
-        args: [
-          ...args,
-          '--disable-blink-features=AutomationControlled',
-          ...(proxy ? [`--proxy-server=${proxy.origin}`] : []),
-        ],
-        ignoreDefaultArgs: ['--enable-automation'],
-        timeout: remaining(),
-        protocolTimeout: config.browserFetchTimeout,
-      });
+      wait(
+        puppeteer.launch({
+          executablePath,
+          headless: config.chromiumExecutablePath ? true : 'shell',
+          args: [
+            ...args,
+            '--disable-blink-features=AutomationControlled',
+            ...(proxy ? [`--proxy-server=${proxy.origin}`] : []),
+          ],
+          ignoreDefaultArgs: ['--enable-automation'],
+          timeout: remaining(),
+          protocolTimeout: config.browserFetchTimeout,
+        }),
+        (lateBrowser) => closeBrowser(lateBrowser),
+      );
 
-    browser = reuse ? await getSharedBrowser(launch) : await launch();
+    browser = reuse
+      ? await wait(getSharedBrowser(launch), () => {
+          activeSharedPages--;
+        })
+      : await launch();
 
-    timer = setTimeout(() => {
-      timedOut = true;
-      close().catch(() => {});
-    }, remaining());
-
-    page = await browser.newPage();
+    page = await wait(browser.newPage(), (latePage) =>
+      closeBrowser(browser, latePage),
+    );
     remaining();
-    await page.setUserAgent(
-      (await browser.userAgent()).replace('HeadlessChrome', 'Chrome'),
+    await wait(
+      page.setUserAgent(
+        (await wait(browser.userAgent())).replace(
+          'HeadlessChrome',
+          'Chrome',
+        ),
+      ),
     );
     if (proxy?.username || proxy?.password) {
-      await page.authenticate({
-        username: decodeURIComponent(proxy.username),
-        password: decodeURIComponent(proxy.password),
-      });
+      await wait(
+        page.authenticate({
+          username: decodeURIComponent(proxy.username),
+          password: decodeURIComponent(proxy.password),
+        }),
+      );
     }
     if (options.headers) {
-      await page.setExtraHTTPHeaders(
-        Object.fromEntries(new Headers(options.headers)),
+      await wait(
+        page.setExtraHTTPHeaders(
+          Object.fromEntries(new Headers(options.headers)),
+        ),
       );
     }
     // The API parses hadith content already present in the HTML, so
     // only the main document and its redirects are loaded. Scripts,
     // styles, images, and frames are skipped.
-    await page.setRequestInterception(true);
+    await wait(page.setRequestInterception(true));
     page.on('request', (request) => {
       const navigation =
         request.isNavigationRequest() &&
@@ -239,11 +285,13 @@ const fetchInBrowser = async (url, options = {}) => {
         navigation ? request.continue() : request.abort()
       ).catch(() => {});
     });
-    const response = await page.goto(target.href, {
-      waitUntil: 'domcontentloaded',
-      timeout: remaining(),
-    });
-    const body = await response.buffer();
+    const response = await wait(
+      page.goto(target.href, {
+        waitUntil: 'domcontentloaded',
+        timeout: remaining(),
+      }),
+    );
+    const body = await wait(response.buffer());
     const headers = new Headers();
     for (const [name, value] of Object.entries(response.headers())) {
       if (
@@ -264,7 +312,11 @@ const fetchInBrowser = async (url, options = {}) => {
       },
     );
   } catch (error) {
-    if (timedOut || error.name === 'TimeoutError') {
+    if (
+      timedOut ||
+      error.name === 'TimeoutError' ||
+      error.statusCode === 408
+    ) {
       throw new AppError(
         'Chromium request timeout. Please try again later.',
         408,
