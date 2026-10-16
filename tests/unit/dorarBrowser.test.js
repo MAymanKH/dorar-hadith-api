@@ -266,18 +266,152 @@ describe('Chromium response and process lifecycle', () => {
     config.browserStrategy = 'reuse';
     config.browserFetchTimeout = 30;
     browser.newPage.mockImplementationOnce(
-      () => new Promise((resolve) => setTimeout(() => resolve(page), 60)),
+      () =>
+        new Promise((resolve) => setTimeout(() => resolve(page), 60)),
     );
     await expect(
       fetchInBrowser('https://dorar.net/h/late-page'),
     ).rejects.toMatchObject({ statusCode: 408 });
+    await new Promise((resolve) => setTimeout(resolve, 60));
     expect(page.close).toHaveBeenCalledTimes(1);
     expect(page.goto).not.toHaveBeenCalled();
     expect(browser.close).not.toHaveBeenCalled();
 
     config.browserFetchTimeout = 1000;
-    expect((await fetchInBrowser('https://dorar.net/h/retry')).status).toBe(200);
+    expect(
+      (await fetchInBrowser('https://dorar.net/h/retry')).status,
+    ).toBe(200);
     expect(puppeteer.launch).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(['extraction', 'launch', 'newPage', 'setup', 'body'])(
+    'enforces the deadline while %s is stalled',
+    async (stage) => {
+      config.browserStrategy = 'reuse';
+      config.browserFetchTimeout = 30;
+      let resume;
+      const stalled = new Promise((resolve) => {
+        resume = resolve;
+      });
+      let value;
+      if (stage === 'extraction') {
+        config.chromiumExecutablePath = undefined;
+        chromium.executablePath.mockReturnValueOnce(stalled);
+        value = '/tmp/chromium';
+      } else if (stage === 'launch') {
+        puppeteer.launch.mockReturnValueOnce(stalled);
+        value = browser;
+      } else if (stage === 'newPage') {
+        browser.newPage.mockReturnValueOnce(stalled);
+        value = page;
+      } else if (stage === 'setup') {
+        page.setUserAgent.mockReturnValueOnce(stalled);
+      } else {
+        const response = await page.goto();
+        page.goto.mockResolvedValueOnce({
+          ...response,
+          buffer: () => stalled,
+        });
+        value = Buffer.from('late body');
+      }
+      const pending = fetchInBrowser(
+        'https://dorar.net/h/stalled',
+      ).catch((error) => error);
+      let watchdog;
+      try {
+        const result = await Promise.race([
+          pending,
+          new Promise((resolve) => {
+            watchdog = setTimeout(
+              () => resolve('deadline was ignored'),
+              150,
+            );
+          }),
+        ]);
+        expect(result).toMatchObject({ statusCode: 408 });
+      } finally {
+        clearTimeout(watchdog);
+        resume(value);
+        await pending;
+        await new Promise(setImmediate);
+      }
+      if (stage === 'launch')
+        expect(browser.close).toHaveBeenCalled();
+      if (stage === 'newPage') expect(page.close).toHaveBeenCalled();
+      config.browserFetchTimeout = 1000;
+      expect(
+        (await fetchInBrowser('https://dorar.net/h/retry')).status,
+      ).toBe(200);
+    },
+  );
+
+  test('a timed-out launch does not block retries or close their browser', async () => {
+    config.browserStrategy = 'reuse';
+    config.browserFetchTimeout = 30;
+    let finishLaunch;
+    const lateBrowser = {
+      ...browser,
+      close: jest.fn().mockResolvedValue(),
+    };
+    puppeteer.launch.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishLaunch = () => resolve(lateBrowser);
+      }),
+    );
+    await expect(
+      fetchInBrowser('https://dorar.net/h/first'),
+    ).rejects.toMatchObject({ statusCode: 408 });
+    config.browserFetchTimeout = 1000;
+    expect(
+      (await fetchInBrowser('https://dorar.net/h/retry')).status,
+    ).toBe(200);
+    finishLaunch();
+    await new Promise(setImmediate);
+    expect(lateBrowser.close).toHaveBeenCalledTimes(1);
+    expect(browser.close).not.toHaveBeenCalled();
+    expect(
+      (await fetchInBrowser('https://dorar.net/h/next')).status,
+    ).toBe(200);
+    expect(puppeteer.launch).toHaveBeenCalledTimes(2);
+  });
+
+  test('a queued timeout preserves active pages and releases its slot', async () => {
+    config.browserStrategy = 'reuse';
+    config.browserFetchTimeout = 1000;
+    const response = await page.goto();
+    const finish = [];
+    page.goto.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish.push(() => resolve(response));
+        }),
+    );
+    const active = [
+      fetchInBrowser('https://dorar.net/h/active1'),
+      fetchInBrowser('https://dorar.net/h/active2'),
+    ];
+    for (let i = 0; i < 50 && finish.length < 2; i++) {
+      await new Promise(setImmediate);
+    }
+    expect(finish).toHaveLength(2);
+    config.browserFetchTimeout = 30;
+    await expect(
+      fetchInBrowser('https://dorar.net/h/queued'),
+    ).rejects.toMatchObject({ statusCode: 408 });
+    expect(page.close).not.toHaveBeenCalled();
+    expect(browser.close).not.toHaveBeenCalled();
+    config.browserFetchTimeout = 1000;
+    finish.forEach((resolve) => resolve());
+    await Promise.all(active);
+    page.goto.mockResolvedValue(response);
+    const retries = await Promise.all(
+      [0, 1, 2].map((i) =>
+        fetchInBrowser(`https://dorar.net/h/retry${i}`),
+      ),
+    );
+    expect(retries.every((result) => result.status === 200)).toBe(
+      true,
+    );
   });
 
   test('recycles an idle shared browser after ten uses', async () => {
